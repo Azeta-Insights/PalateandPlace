@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+    width: 100%;
+    min-height: 100dvh;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .font-display {
+    font-family: 'Cinzel', serif;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0c0a09;
+}
+::-webkit-scrollbar-thumb {
+  background: #292524;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #44403c;
+}
+
+/* Utility to hide scrollbars while allowing touch scrolling */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch & momentum scroll helper */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Safe area bottom padding for notch / bottom navigation bar */
+.safe-bottom-padding {
+  padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+}

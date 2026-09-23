@@ -1,0 +1,17 @@
+{
+  "name": "Palate & Place",
+  "short_name": "Palate & Place",
+  "description": "Discover places through food. Authentic global cookbook with offline cooking, AI Chef, and Food Passport.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0a09",
+  "theme_color": "#0c0a09",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

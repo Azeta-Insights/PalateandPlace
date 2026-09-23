@@ -1,0 +1,8 @@
+{
+  "name": "Palate and Place",
+  "description": "Discover places through food. Global cookbook with offline cooking, AI Chef, and Food Passport.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
