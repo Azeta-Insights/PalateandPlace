@@ -209,7 +209,7 @@ export async function checkRateLimit(identifier: string): Promise<boolean> {
 // -------------------------------------------------------------
 // 1. AI CHEF ENDPOINT & MODEL RESILIENCE
 // -------------------------------------------------------------
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+const FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 
 async function generateWithFallback(client: GoogleGenAI, prompt: string, config: any) {
   let lastError: any = null;
@@ -335,7 +335,8 @@ export async function handleAskChef(req: Request, res: Response) {
       let systemInstruction = `You are the executive culinary mentor of "Palate & Place", an authentic global cookbook and cultural food passport.
 Core positioning: "Discover places through food."
 Role: Warm, culturally respectful, authoritative, and practical.
-Tone: Encouraging, concise, direct, helpful for home cooks. Avoid excessive fluff. Provide actionable culinary advice in 2-3 short paragraphs or clean bullet points.`;
+Tone: Encouraging, direct, and helpful for home cooks. Avoid excessive preamble. Provide complete, actionable culinary advice with clear steps or clean bullet points.
+Always finish your thoughts and explanations completely so your advice never cuts off or stops halfway.`;
 
       if (recipeContext) {
         systemInstruction += `\n\nCURRENT AUTHENTIC DISH CONTEXT:
@@ -348,11 +349,11 @@ Chef Tips: ${JSON.stringify(recipeContext.cookingTips || [])}
 Spice Level: ${recipeContext.spiceLevel} / 5
 
 RULES:
-1. Stay strictly anchored to this dish and its real cultural technique.
-2. If fixing a mistake (e.g. over-salted, burnt pan, sticky rice), give immediate culinary remedies without judgment.
-3. Keep fair-use answers concise and helpful.`;
+1. Stay strictly anchored to this dish and its authentic cultural technique.
+2. If fixing a culinary issue (e.g. over-salted, sauce separated, rice burnt), provide immediate, easy home remedies.
+3. Keep responses nicely formatted with markdown bullet points or steps, and ensure every sentence is fully completed.`;
       } else {
-        systemInstruction += `\n\nYou are answering a global discovery question. Ground your answer in world culinary heritage and practical kitchen technique.`;
+        systemInstruction += `\n\nYou are answering a global cooking or ingredients question. Ground your answer in world culinary heritage, practical kitchen wisdom, and clear step-by-step guidance. Always provide a full, complete response without cutting off.`;
       }
 
       const prompt = `User cooking question: "${userQuestion}"`;
@@ -361,7 +362,7 @@ RULES:
         const response = await generateWithFallback(aiClient, prompt, {
           systemInstruction,
           temperature: 0.6,
-          maxOutputTokens: 600
+          maxOutputTokens: 2500
         });
         replyText = response.text || '';
       } catch (geminiErr: any) {

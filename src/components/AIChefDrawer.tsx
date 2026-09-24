@@ -34,6 +34,96 @@ interface Message {
   timestamp: string;
 }
 
+// Helper to format bold markdown, lists, and prevent any mobile horizontal overflow
+const formatInlineTokens = (text: string, isUser: boolean) => {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong
+          key={i}
+          className={isUser ? 'font-bold text-stone-950' : 'font-semibold text-amber-300'}
+        >
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+};
+
+const renderFormattedChefMessage = (text: string, isUser: boolean) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
+
+  const flushList = () => {
+    if (!currentList) return;
+    if (currentList.type === 'ul') {
+      elements.push(
+        <ul key={`ul-${elements.length}`} className="my-1.5 space-y-1 pl-4 list-disc text-inherit">
+          {currentList.items.map((item, idx) => (
+            <li key={idx} className="break-words [overflow-wrap:anywhere]">
+              {formatInlineTokens(item, isUser)}
+            </li>
+          ))}
+        </ul>
+      );
+    } else {
+      elements.push(
+        <ol key={`ol-${elements.length}`} className="my-1.5 space-y-1 pl-4 list-decimal text-inherit">
+          {currentList.items.map((item, idx) => (
+            <li key={idx} className="break-words [overflow-wrap:anywhere]">
+              {formatInlineTokens(item, isUser)}
+            </li>
+          ))}
+        </ol>
+      );
+    }
+    currentList = null;
+  };
+
+  lines.forEach((line, lineIdx) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      elements.push(<div key={`sp-${lineIdx}`} className="h-1" />);
+      return;
+    }
+
+    const bulletMatch = trimmed.match(/^[-*•]\s+(.*)$/);
+    if (bulletMatch) {
+      if (!currentList || currentList.type !== 'ul') {
+        flushList();
+        currentList = { type: 'ul', items: [] };
+      }
+      currentList.items.push(bulletMatch[1]);
+      return;
+    }
+
+    const numMatch = trimmed.match(/^\d+[.)]\s+(.*)$/);
+    if (numMatch) {
+      if (!currentList || currentList.type !== 'ol') {
+        flushList();
+        currentList = { type: 'ol', items: [] };
+      }
+      currentList.items.push(numMatch[1]);
+      return;
+    }
+
+    flushList();
+    elements.push(
+      <p key={`p-${lineIdx}`} className="break-words [overflow-wrap:anywhere] leading-relaxed my-1">
+        {formatInlineTokens(trimmed, isUser)}
+      </p>
+    );
+  });
+
+  flushList();
+  return elements;
+};
+
 export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
   isOpen,
   onClose,
@@ -189,7 +279,7 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-stone-950 border-l border-stone-800 shadow-2xl flex flex-col h-[100dvh] max-h-[100dvh] animate-in slide-in-from-right duration-200 overflow-hidden"
+        className="relative w-full max-w-full sm:max-w-lg bg-stone-950 border-l border-stone-800 shadow-2xl flex flex-col h-[100dvh] max-h-[100dvh] animate-in slide-in-from-right duration-200 overflow-x-hidden overflow-y-hidden"
       >
         
         {/* Drawer Header - Simple, Warm English */}
@@ -257,34 +347,34 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
         </div>
 
         {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4 touch-scroll">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3.5 sm:p-5 space-y-4 touch-scroll w-full max-w-full overflow-x-hidden">
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+              className={`flex flex-col w-full max-w-full min-w-0 ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[88%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
+                className={`max-w-[92%] sm:max-w-[85%] rounded-2xl p-3.5 sm:p-4 text-xs sm:text-sm leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] overflow-x-hidden ${
                   msg.sender === 'user'
                     ? 'bg-amber-500 text-stone-950 font-medium rounded-tr-sm shadow-md'
                     : 'bg-stone-900 border border-stone-800 text-stone-200 rounded-tl-sm shadow-md'
                 }`}
               >
                 {msg.title && (
-                  <p className="font-serif font-bold text-amber-400 text-sm mb-1.5 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    {msg.title}
+                  <p className="font-serif font-bold text-amber-400 text-sm mb-1.5 flex items-center gap-1.5 break-words [overflow-wrap:anywhere]">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span>{msg.title}</span>
                   </p>
                 )}
 
-                <div className="whitespace-pre-wrap space-y-2">
-                  {msg.text}
+                <div className="w-full max-w-full min-w-0 break-words [overflow-wrap:anywhere] overflow-x-hidden">
+                  {renderFormattedChefMessage(msg.text, msg.sender === 'user')}
                 </div>
 
                 {/* Friendly tag for instant offline tips */}
                 {msg.sender === 'chef' && msg.handledLocally && (
                   <div className="mt-2.5 pt-2 border-t border-stone-800 flex items-center gap-1.5 text-[11px] text-amber-400/90 font-medium">
-                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span>Quick tip • Free (doesn't count against your questions)</span>
                   </div>
                 )}
