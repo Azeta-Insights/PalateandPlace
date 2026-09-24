@@ -1,6 +1,6 @@
 // Service Worker for Palate & Place (Offline shell & recipe image caching)
-const SHELL_CACHE = 'palate-place-shell-v1';
-const IMAGE_CACHE = 'palate-place-images-v1';
+const SHELL_CACHE = 'palate-place-shell-v2';
+const IMAGE_CACHE = 'palate-place-images-v2';
 
 const SHELL_ASSETS = [
   '/',
