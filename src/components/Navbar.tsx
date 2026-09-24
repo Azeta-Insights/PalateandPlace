@@ -45,77 +45,72 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { user, profile, isOnline, isAdmin, isPremium, signOut } = useAuth();
   const { passport, shoppingList, favorites } = useKitchen();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   const countriesVisitedCount = Object.keys(passport).length;
   const uncheckedShoppingCount = shoppingList.filter(i => !i.checked).length;
 
   return (
-    <header className="sticky top-0 z-40 bg-stone-950/90 backdrop-blur-xl border-b border-stone-800/80 transition-colors">
+    <header className="sticky top-0 z-40 bg-[#FBF9F5]/95 backdrop-blur-md border-b border-[#E8E1D7] transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-14 sm:h-20 gap-3 sm:gap-4">
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-4">
           
-          {/* Brand Logo */}
+          {/* Zone 1: Editorial Brand Masthead */}
           <div 
             onClick={() => onSelectView('home')}
-            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none"
+            className="flex items-center gap-3 cursor-pointer group select-none"
           >
-            <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-700 flex items-center justify-center shadow-md sm:shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform shrink-0">
-              <Compass className="w-4 h-4 sm:w-6 sm:h-6 text-stone-950 stroke-[2.2]" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#231B15] text-[#FBF9F5] flex items-center justify-center transition-transform group-hover:scale-105 shrink-0 shadow-sm">
+              <Compass className="w-5 h-5 text-[#E8DAB7] stroke-[1.8]" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-serif text-base sm:text-xl font-bold tracking-tight text-stone-100 group-hover:text-amber-400 transition-colors">
-                  Palate & Place
-                </span>
-              </div>
-              <p className="hidden sm:block text-[11px] text-stone-400 font-medium tracking-wide">
-                Discover places through food.
+              <span className="font-serif text-lg sm:text-2xl font-bold tracking-tight text-[#231B15] group-hover:text-[#C85A32] transition-colors">
+                Palate & Place
+              </span>
+              <p className="hidden sm:block text-[10px] uppercase tracking-widest text-[#8E8277] font-medium -mt-0.5">
+                The World Cookbook & Travel Journal
               </p>
             </div>
           </div>
 
-          {/* Center Navigation Tabs (Desktop) */}
-          <nav className="hidden md:flex items-center gap-1 p-1 bg-stone-900/90 rounded-full border border-stone-800/80">
+          {/* Zone 2: Editorial Navigation Links (Desktop) */}
+          <nav className="hidden md:flex items-center gap-1 p-1 bg-[#F4F0E8] rounded-xl border border-[#E8E1D7]">
             <button
               onClick={() => onSelectView('home')}
-              className={`px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all flex items-center gap-1.5 ${
                 currentView === 'home'
-                  ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 font-bold'
-                  : 'text-stone-300 hover:text-stone-100 hover:bg-stone-800/50'
+                  ? 'bg-white text-[#231B15] shadow-sm font-semibold'
+                  : 'text-[#6E6258] hover:text-[#231B15] hover:bg-white/60'
               }`}
             >
               <Home className="w-3.5 h-3.5" />
-              Home
+              <span>Journal</span>
             </button>
 
             <button
               onClick={() => onSelectView('explore')}
-              className={`px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all flex items-center gap-1.5 ${
                 currentView === 'explore' || currentView === 'cookbook'
-                  ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 font-bold'
-                  : 'text-stone-300 hover:text-stone-100 hover:bg-stone-800/50'
+                  ? 'bg-white text-[#231B15] shadow-sm font-semibold'
+                  : 'text-[#6E6258] hover:text-[#231B15] hover:bg-white/60'
               }`}
             >
               <Globe className="w-3.5 h-3.5" />
-              Explore Atlas
+              <span>World Atlas</span>
             </button>
 
             <button
               onClick={() => onSelectView('passport')}
-              className={`px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all flex items-center gap-1.5 ${
                 currentView === 'passport'
-                  ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 font-bold'
-                  : 'text-stone-300 hover:text-stone-100 hover:bg-stone-800/50'
+                  ? 'bg-white text-[#231B15] shadow-sm font-semibold'
+                  : 'text-[#6E6258] hover:text-[#231B15] hover:bg-white/60'
               }`}
             >
               <Compass className="w-3.5 h-3.5" />
-              Food Passport
+              <span>Passport</span>
               {countriesVisitedCount > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  currentView === 'passport' ? 'bg-stone-950 text-amber-400' : 'bg-amber-500/20 text-amber-400'
-                }`}>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-[#E8E1D7] text-[#231B15]">
                   {countriesVisitedCount}
                 </span>
               )}
@@ -123,18 +118,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => onSelectView('kitchen')}
-              className={`px-4 py-2 rounded-full text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all flex items-center gap-1.5 ${
                 currentView === 'kitchen'
-                  ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20 font-bold'
-                  : 'text-stone-300 hover:text-stone-100 hover:bg-stone-800/50'
+                  ? 'bg-white text-[#231B15] shadow-sm font-semibold'
+                  : 'text-[#6E6258] hover:text-[#231B15] hover:bg-white/60'
               }`}
             >
               <User className="w-3.5 h-3.5" />
-              My Kitchen
+              <span>My Kitchen</span>
               {(favorites.size > 0 || uncheckedShoppingCount > 0) && (
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  currentView === 'kitchen' ? 'bg-stone-950 text-amber-400' : 'bg-stone-800 text-stone-300'
-                }`}>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-[#E8E1D7] text-[#231B15]">
                   {favorites.size + uncheckedShoppingCount}
                 </span>
               )}
@@ -143,8 +136,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onOpenSurpriseMe && (
               <button
                 onClick={onOpenSurpriseMe}
-                className="px-3 py-2 rounded-full text-xs font-bold text-amber-400 hover:bg-amber-500/15 transition-all flex items-center gap-1"
-                title="🎲 Take Me Somewhere"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#C85A32] hover:bg-[#FDF2ED] transition-all flex items-center gap-1.5"
+                title="Random Recipe Discovery"
               >
                 <Dices className="w-3.5 h-3.5" />
                 <span>Surprise Me</span>
@@ -153,67 +146,67 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={onOpenAIChef}
-              className="px-3.5 py-2 rounded-full text-xs font-semibold tracking-wide text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#5C6B38] hover:bg-[#F2F5EC] transition-colors flex items-center gap-1.5"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              AI Chef
+              <Sparkles className="w-3.5 h-3.5 text-[#5C6B38]" />
+              <span>AI Chef</span>
             </button>
           </nav>
 
-          {/* Right Controls: Online status, Unlock/Premium badge, Admin, Profile */}
+          {/* Zone 3: Actions (Online status, World Unlock, Auth/Profile) */}
           <div className="flex items-center gap-2 sm:gap-3">
             
-            {/* Online / Offline badge */}
+            {/* Online / Offline status */}
             <div 
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors border ${
                 isOnline 
-                  ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/50'
-                  : 'bg-amber-950/60 text-amber-300 border-amber-700/60 animate-pulse'
+                  ? 'bg-[#F2F5EC] text-[#5C6B38] border-[#D5DEBF]'
+                  : 'bg-[#FDF2ED] text-[#C85A32] border-[#F4CEBE]'
               }`}
-              title={isOnline ? 'Connected to Cook The World Cloud' : 'Offline mode: 50 Starters & Saved Recipes are available offline'}
+              title={isOnline ? 'Online • 380+ Global Recipes Synchronized' : 'Offline Mode • 50 Starters & Saved Recipes Ready'}
             >
-              {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3 text-amber-400" />}
-              <span className="hidden lg:inline">{isOnline ? 'Online' : 'Offline Mode'}</span>
+              {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3 text-[#C85A32]" />}
+              <span className="hidden lg:inline">{isOnline ? 'Online' : 'Offline'}</span>
             </div>
 
-            {/* Admin Console Link (visible only when logged in as admin) */}
+            {/* Admin Console */}
             {isAdmin && (
               <button
                 onClick={onOpenAdmin}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-700/80 text-xs font-bold transition-all shadow-md shadow-red-950/40"
-                title="Open Admin Console (Tester Requests & Recipe Insights)"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[#231B15] text-[#FBF9F5] text-xs font-medium hover:bg-[#3D322A] transition-all"
+                title="Admin Console"
               >
-                <Shield className="w-3.5 h-3.5 text-red-400" />
-                <span>Admin</span>
+                <Shield className="w-3.5 h-3.5 text-[#E8DAB7]" />
+                <span className="hidden sm:inline">Admin</span>
               </button>
             )}
 
-            {/* World Unlock CTA / Premium Pill */}
+            {/* World Pass CTA (Antique brass highlight) */}
             {!isPremium ? (
               <button
                 onClick={onOpenUnlock}
-                className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 text-xs sm:text-sm font-bold shadow-lg shadow-amber-500/20 hover:shadow-amber-500/35 transition-all transform active:scale-95"
+                className="flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] text-xs sm:text-sm font-medium transition-all shadow-sm active:scale-95 border border-[#3D322A]"
               >
-                <Crown className="w-3.5 h-3.5 fill-stone-950" />
-                <span>Unlock World</span>
-                <span className="hidden sm:inline opacity-80 font-mono text-xs">₦2,500</span>
+                <Crown className="w-3.5 h-3.5 text-[#E8DAB7]" />
+                <span>Unlock All 380+</span>
+                <span className="hidden sm:inline text-[#E8DAB7] text-xs font-mono font-bold">₦2,500</span>
               </button>
             ) : (
               <div 
                 onClick={onOpenUnlock}
-                className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-400 text-xs font-semibold hover:bg-amber-500/25 transition-colors"
+                className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FAF5E8] border border-[#E8DAB7] text-[#9E740B] text-xs font-medium hover:bg-[#F5EED8] transition-colors"
               >
-                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <Crown className="w-3.5 h-3.5 text-[#B8860B]" />
                 <span className="hidden sm:inline">World Pass</span>
               </div>
             )}
 
-            {/* Profile / Auth Menu */}
+            {/* Profile / Account Dropdown */}
             {user ? (
               <div className="relative">
                 <button
                   onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-stone-800 border border-stone-700 hover:border-amber-500 flex items-center justify-center text-sm font-bold text-amber-400 transition-all overflow-hidden focus:outline-none"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#F4F0E8] border border-[#E8E1D7] hover:border-[#231B15] flex items-center justify-center text-xs font-bold text-[#231B15] transition-all overflow-hidden focus:outline-none"
                 >
                   {user.photoURL ? (
                     <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
@@ -224,199 +217,59 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {profileDropdownOpen && (
                   <div 
-                    className="absolute right-0 mt-2 w-60 rounded-2xl bg-stone-900 border border-stone-800 shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute right-0 mt-2 w-64 rounded-xl bg-white border border-[#E8E1D7] shadow-xl py-2 z-50 animate-in fade-in duration-100"
                     onClick={() => setProfileDropdownOpen(false)}
                   >
-                    <div className="px-4 py-2 border-b border-stone-800">
-                      <p className="text-xs font-semibold text-stone-200 truncate">{user.displayName || 'Cook The World Chef'}</p>
-                      <p className="text-[11px] text-stone-400 truncate">{user.email}</p>
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          isPremium ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-stone-800 text-stone-400'
+                    <div className="px-4 py-2.5 border-b border-[#E8E1D7]">
+                      <p className="text-xs font-semibold text-[#231B15] truncate">{user.displayName || 'Chef Traveler'}</p>
+                      <p className="text-[11px] text-[#8E8277] truncate">{user.email}</p>
+                      <div className="mt-1.5 flex items-center gap-1">
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${
+                          isPremium ? 'bg-[#FAF5E8] text-[#9E740B] border border-[#E8DAB7]' : 'bg-[#F4F0E8] text-[#6E6258]'
                         }`}>
-                          {isPremium ? 'Lifetime World Pass' : 'Free Explorer'}
+                          {isPremium ? 'Lifetime World Pass' : 'Free Starter Explorer'}
                         </span>
-                        {isAdmin && (
-                          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-950 text-red-300 border border-red-800/80">
-                            App Admin
-                          </span>
-                        )}
                       </div>
                     </div>
 
                     <button
                       onClick={() => onSelectView('kitchen')}
-                      className="w-full text-left px-4 py-2 text-xs text-stone-300 hover:text-white hover:bg-stone-800 flex items-center gap-2.5"
+                      className="w-full text-left px-4 py-2 text-xs text-[#5E5248] hover:text-[#231B15] hover:bg-[#FBF9F5] flex items-center gap-2.5"
                     >
-                      <History className="w-3.5 h-3.5 text-stone-400" />
-                      Cooking History & Notes
+                      <User className="w-3.5 h-3.5 text-[#8E8277]" />
+                      <span>My Kitchen & Saved</span>
                     </button>
 
                     <button
-                      onClick={() => onSelectView('kitchen')}
-                      className="w-full text-left px-4 py-2 text-xs text-stone-300 hover:text-white hover:bg-stone-800 flex items-center gap-2.5"
+                      onClick={() => onSelectView('passport')}
+                      className="w-full text-left px-4 py-2 text-xs text-[#5E5248] hover:text-[#231B15] hover:bg-[#FBF9F5] flex items-center gap-2.5"
                     >
-                      <ShoppingBag className="w-3.5 h-3.5 text-stone-400" />
-                      Shopping List ({shoppingList.length})
+                      <Compass className="w-3.5 h-3.5 text-[#8E8277]" />
+                      <span>Food Passport ({countriesVisitedCount} Stamped)</span>
                     </button>
 
-                    <button
-                      onClick={() => onSelectView('kitchen')}
-                      className="w-full text-left px-4 py-2 text-xs text-stone-300 hover:text-white hover:bg-stone-800 flex items-center gap-2.5"
-                    >
-                      <Bookmark className="w-3.5 h-3.5 text-stone-400" />
-                      Favorites ({favorites.size})
-                    </button>
-
-                    {isAdmin && (
+                    <div className="border-t border-[#E8E1D7] mt-1 pt-1">
                       <button
-                        onClick={onOpenAdmin}
-                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-red-300 bg-red-950/40 hover:bg-red-900/60 flex items-center justify-between border-y border-red-900/40 transition-colors my-1"
+                        onClick={() => signOut()}
+                        className="w-full text-left px-4 py-2 text-xs text-[#C85A32] hover:bg-[#FDF2ED] flex items-center gap-2.5"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <Shield className="w-3.5 h-3.5 text-red-400" />
-                          <span>Admin Console</span>
-                        </div>
-                        <span className="text-[10px] text-red-400 font-mono">Approve</span>
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out</span>
                       </button>
-                    )}
-
-                    <div className="border-t border-stone-800 my-1" />
-
-                    <button
-                      onClick={() => signOut()}
-                      className="w-full text-left px-4 py-2 text-xs text-stone-400 hover:text-stone-200 hover:bg-stone-800 flex items-center gap-2.5"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      Sign Out
-                    </button>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
               <button
                 onClick={onOpenAuth}
-                className="px-3.5 py-1.5 sm:py-2 rounded-full bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-700/80 text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5"
+                className="px-3.5 py-1.5 sm:py-2 rounded-lg border border-[#E8E1D7] bg-white hover:bg-[#F4F0E8] text-[#231B15] text-xs font-medium transition-colors"
               >
-                <User className="w-3.5 h-3.5" />
-                <span>Sign In</span>
+                Sign In
               </button>
             )}
-
-            {/* Mobile Hamburger Menu Toggle */}
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="md:hidden p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-900"
-            >
-              {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile Navigation Drawer */}
-        {menuOpen && (
-          <div className="md:hidden py-4 border-t border-stone-800 space-y-2 animate-in slide-in-from-top-3">
-            <button
-              onClick={() => {
-                onSelectView('home');
-                setMenuOpen(false);
-              }}
-              className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between ${
-                currentView === 'home' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-300 hover:bg-stone-900'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="w-4 h-4" />
-                <span>Home & Daily Inspiration</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => {
-                onSelectView('explore');
-                setMenuOpen(false);
-              }}
-              className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between ${
-                currentView === 'explore' || currentView === 'cookbook' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-300 hover:bg-stone-900'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Globe className="w-4 h-4" />
-                <span>Explore Global Atlas (300+ Dishes)</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => {
-                onSelectView('passport');
-                setMenuOpen(false);
-              }}
-              className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between ${
-                currentView === 'passport' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-300 hover:bg-stone-900'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Compass className="w-4 h-4" />
-                <span>Food Passport</span>
-              </div>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono font-bold">
-                {countriesVisitedCount} Visited
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                onSelectView('kitchen');
-                setMenuOpen(false);
-              }}
-              className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-between ${
-                currentView === 'kitchen' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-300 hover:bg-stone-900'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <User className="w-4 h-4" />
-                <span>My Kitchen (History & Shopping)</span>
-              </div>
-            </button>
-
-            {onOpenSurpriseMe && (
-              <button
-                onClick={() => {
-                  onOpenSurpriseMe();
-                  setMenuOpen(false);
-                }}
-                className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-amber-400 hover:bg-amber-500/10 flex items-center gap-2.5"
-              >
-                <Dices className="w-4 h-4" />
-                <span>🎲 Surprise Me (Take Me Somewhere)</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                onOpenAIChef();
-                setMenuOpen(false);
-              }}
-              className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-amber-400 hover:bg-amber-500/10 flex items-center gap-2.5"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Ask AI Chef (Cooking Mentor)</span>
-            </button>
-
-            {isAdmin && (
-              <button
-                onClick={() => {
-                  onOpenAdmin();
-                  setMenuOpen(false);
-                }}
-                className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-950/40 flex items-center gap-2"
-              >
-                <Shield className="w-4 h-4" />
-                <span>Admin Console</span>
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </header>
   );

@@ -1,5 +1,3 @@
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import { UserEntitlement } from '../types/recipe';
 
 declare global {
@@ -32,65 +30,52 @@ export class PaystackService {
   static async initiateWorldUnlock(
     userEmail: string,
     userId: string,
+    idToken: string,
     onSuccess: (result: PaymentSuccessResult) => void,
     onError: (err: string) => void
   ): Promise<void> {
     try {
-      let initData: any = null;
-
       // 1. Request initialization from backend API
-      try {
-        const res = await fetch('/api/paystack/initialize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: userEmail, userId })
-        });
+      const res = await fetch('/api/paystack/initialize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({ email: userEmail, userId })
+      });
 
-        if (res.ok) {
-          const contentType = res.headers.get('content-type') || '';
-          if (contentType.includes('application/json')) {
-            initData = await res.json();
-          }
-        }
-      } catch (fetchErr) {
-        console.warn('Backend API initialization notice:', fetchErr);
+      if (!res.ok) {
+        throw new Error('Could not initiate payment session with server.');
       }
 
-      // 1. If backend detected an invalid key configuration (e.g. secret key used)
+      const initData = await res.json();
+
       if (initData?.keyError) {
         onError(initData.keyError);
         return;
       }
 
-      // Safe fallback if serverless API is initializing or key configured in Vite
-      if (!initData || !initData.reference) {
-        const clientPublicKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PAYSTACK_PUBLIC_KEY) || '';
-        initData = {
-          success: true,
-          amount: 250000,
-          currency: 'NGN',
-          reference: `CTW-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-          publicKey: clientPublicKey || '',
-          metadata: { userId, plan: 'world_unlock_lifetime', price: 2500 }
-        };
-      }
-
-      // Validate standard Paystack Public Key format: must start with pk_live_ or pk_test_
       const rawKey = (initData.publicKey || '').trim().replace(/^["']|["']$/g, '');
       const isRealPaystackKey = /^(pk_live_|pk_test_)[a-zA-Z0-9]{20,}$/.test(rawKey);
 
-      // 2. Only launch Paystack popup if a genuine public key is present
       if (window.PaystackPop && window.PaystackPop.setup && isRealPaystackKey) {
         try {
           const handler = window.PaystackPop.setup({
             key: rawKey,
-            email: userEmail || 'customer@cooktheworld.app',
+            email: userEmail || 'customer@palateandplace.app',
             amount: initData.amount || 250000,
             currency: 'NGN',
             ref: initData.reference,
             metadata: initData.metadata,
             callback: function (response: { reference: string }) {
-              PaystackService.verifyAndGrantEntitlement(response.reference, userId, onSuccess, onError);
+              PaystackService.verifyAndGrantEntitlement(
+                response.reference,
+                userId,
+                idToken,
+                onSuccess,
+                onError
+              );
             },
             onClose: function () {
               onError('Payment window closed before completion');
@@ -99,14 +84,13 @@ export class PaystackService {
 
           handler.openIframe();
         } catch (setupErr: any) {
-          console.warn('Paystack popup setup notice:', setupErr);
-          await this.verifyAndGrantEntitlement(initData.reference, userId, onSuccess, onError);
+          onError('Error opening Paystack checkout: ' + (setupErr.message || 'Please retry.'));
         }
       } else {
-        // 3. Test / Sandbox / Preview mode:
-        // Automatically activate unlock so the user/reviewer is never blocked with an invalid key popup
-        console.info('No live Paystack public key configured in environment. Completing instant unlock in test mode.');
-        await this.verifyAndGrantEntitlement(initData.reference, userId, onSuccess, onError);
+        // If live Paystack keys are not yet configured in this deployment environment:
+        onError(
+          'Paystack live payment gateway is not yet configured with a valid Public Key in this environment. If you are testing or reviewing, please use the "Request Reviewer Pass" button to unlock full access.'
+        );
       }
     } catch (err: any) {
       console.error('Paystack initiation error:', err);
@@ -117,46 +101,32 @@ export class PaystackService {
   public static async verifyAndGrantEntitlement(
     reference: string,
     userId: string,
+    idToken: string,
     onSuccess: (result: PaymentSuccessResult) => void,
     onError: (err: string) => void
   ): Promise<void> {
     try {
-      let entitlement: UserEntitlement = {
+      const verifyRes = await fetch('/api/paystack/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({ reference, userId })
+      });
+
+      const verifyData = await verifyRes.json();
+
+      if (!verifyRes.ok || !verifyData.verified) {
+        throw new Error(verifyData.message || 'Payment verification failed on server.');
+      }
+
+      const entitlement: UserEntitlement = verifyData.entitlement || {
         tier: 'premium',
         source: 'purchase',
         unlockedAt: new Date().toISOString(),
         paystackReference: reference
       };
-
-      try {
-        const verifyRes = await fetch('/api/paystack/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference, userId })
-        });
-
-        if (verifyRes.ok) {
-          const verifyData = await verifyRes.json();
-          if (verifyData.entitlement) {
-            entitlement = verifyData.entitlement;
-          }
-        }
-      } catch (backendErr) {
-        console.warn('Backend verification call notice:', backendErr);
-      }
-
-      // Update user record in Firestore if user is authenticated
-      if (userId) {
-        try {
-          const userRef = doc(db, 'users', userId);
-          await updateDoc(userRef, {
-            entitlement,
-            updatedAt: new Date().toISOString()
-          });
-        } catch (dbErr) {
-          console.warn('Firestore update warning:', dbErr);
-        }
-      }
 
       onSuccess({
         success: true,
@@ -164,7 +134,7 @@ export class PaystackService {
         entitlement
       });
     } catch (err: any) {
-      onError('Error verifying transaction: ' + (err.message || 'Please try again'));
+      onError('Payment verification error: ' + (err.message || 'Please contact support.'));
     }
   }
 }

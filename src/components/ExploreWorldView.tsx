@@ -10,7 +10,8 @@ import {
   X, 
   RotateCcw,
   Check,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Dices
 } from 'lucide-react';
 import { Recipe, Continent } from '../types/recipe';
 import { ALL_RECIPES } from '../data/recipes';
@@ -223,7 +224,7 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
     sortBy
   ]);
 
-  // Handle Gemini Natural-Language Search when user requests
+  // Handle Gemini Natural-Language Search
   const handleAiSmartSearch = async () => {
     if (!searchQuery.trim() || !isOnline) return;
     setIsAiSearching(true);
@@ -233,28 +234,28 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
         setAiIntentExplanation(result.explanation);
       }
     } catch {
-      // Handled
+      // Handled gracefully
     } finally {
       setIsAiSearching(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-stone-950 pb-28 pt-4 sm:pt-8 text-stone-100 animate-in fade-in duration-200">
+    <div className="min-h-screen bg-[#FBF9F5] pb-28 pt-6 sm:pt-10 text-[#231B15] animate-in fade-in duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
         
         {/* Editorial Screen Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-stone-800">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-[#E8E1D7]">
           <div>
-            <span className="text-xs uppercase tracking-widest text-amber-400 font-bold flex items-center gap-1.5">
-              <Globe className="w-4 h-4" />
-              GLOBAL CULINARY ATLAS
+            <span className="text-[11px] uppercase tracking-widest text-[#C85A32] font-semibold flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" />
+              <span>THE GLOBAL CULINARY ATLAS</span>
             </span>
-            <h1 className="font-serif text-2xl sm:text-5xl font-black text-stone-100 tracking-tight mt-1">
-              EXPLORE THE WORLD
+            <h1 className="font-serif text-3xl sm:text-5xl font-bold text-[#231B15] tracking-tight mt-1">
+              Explore the World
             </h1>
-            <p className="text-xs sm:text-sm text-stone-400 max-w-xl mt-1.5">
-              Traverse authentic recipes cataloged across 6 continents, 50+ countries, regional cuisines, and specialized culinary dimensions.
+            <p className="text-xs sm:text-sm text-[#5E5248] max-w-xl mt-1.5 leading-relaxed">
+              Traverse authentic recipes cataloged across 6 continents, 52 countries, regional cuisines, and specialized culinary dimensions.
             </p>
           </div>
 
@@ -262,16 +263,16 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={onOpenSurpriseMe}
-              className="px-4 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center gap-2 transition-all active:scale-95 min-h-[44px]"
+              className="px-3.5 py-2 rounded-lg bg-white hover:bg-[#F4F0E8] text-[#C85A32] border border-[#E8E1D7] text-xs font-medium flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>🎲 Surprise Me</span>
+              <Dices className="w-3.5 h-3.5" />
+              <span>Surprise Me</span>
             </button>
             <button
               onClick={onOpenAIChef}
-              className="px-4 py-2.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-800 text-xs font-semibold flex items-center gap-2 transition-all min-h-[44px]"
+              className="px-3.5 py-2 rounded-lg bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] text-xs font-medium flex items-center gap-1.5 transition-all shadow-sm"
             >
-              <UtensilsCrossed className="w-4 h-4 text-amber-400" />
+              <Sparkles className="w-3.5 h-3.5 text-[#E8DAB7]" />
               <span>Ask AI Chef</span>
             </button>
           </div>
@@ -279,15 +280,15 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
         {/* Search & Intent Box */}
         <div className="space-y-2">
-          <div className="relative flex items-center bg-stone-900/90 rounded-2xl border border-stone-800 shadow-xl focus-within:border-amber-500/80 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all">
-            <Search className="w-5 h-5 text-stone-400 ml-4 shrink-0" />
+          <div className="relative flex items-center bg-white rounded-xl border border-[#E8E1D7] shadow-sm focus-within:border-[#231B15] focus-within:ring-1 focus-within:ring-[#231B15] transition-all">
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 text-[#8E8277] ml-3.5 sm:ml-4 shrink-0" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAiSmartSearch()}
               placeholder='Try "something spicy", "chicken and rice", "under 30 minutes", or "Nigerian soup"...'
-              className="w-full py-3.5 pl-3 pr-24 bg-transparent text-sm sm:text-base text-stone-100 placeholder-stone-400 focus:outline-none"
+              className="w-full py-3.5 pl-3 pr-24 bg-transparent text-xs sm:text-sm text-[#231B15] placeholder-[#8E8277] focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -295,7 +296,7 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                   setSearchQuery('');
                   setAiIntentExplanation(null);
                 }}
-                className="p-2 mr-2 text-stone-400 hover:text-stone-200 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-1.5 mr-2 text-[#8E8277] hover:text-[#231B15] min-h-[40px] min-w-[40px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -304,20 +305,20 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
               <button
                 onClick={handleAiSmartSearch}
                 disabled={isAiSearching}
-                className="mr-2 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold transition-all shrink-0 flex items-center gap-1 min-h-[38px]"
+                className="mr-2 px-3 py-1.5 rounded-lg bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] text-xs font-medium transition-all shrink-0 flex items-center gap-1"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Sparkles className="w-3 h-3 text-[#E8DAB7]" />
                 <span>{isAiSearching ? 'Reasoning...' : 'AI Search'}</span>
               </button>
             )}
           </div>
 
           {aiIntentExplanation && (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center justify-between">
+            <div className="p-3 rounded-lg bg-[#FDF2ED] border border-[#F4CEBE] text-xs text-[#C85A32] flex items-center justify-between">
               <span>✨ {aiIntentExplanation}</span>
               <button 
                 onClick={() => setAiIntentExplanation(null)}
-                className="text-amber-400 hover:text-amber-200 p-1"
+                className="text-[#C85A32] hover:text-[#A83E20] p-1"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -327,72 +328,27 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
         {/* Dimensional Navigation Tabs */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none touch-scroll border-b border-stone-800/80">
-            <button
-              onClick={() => setActiveDimension('continents')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all min-h-[40px] ${
-                activeDimension === 'continents'
-                  ? 'bg-amber-500 text-stone-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 hover:bg-stone-900'
-              }`}
-            >
-              Continents ({CONTINENTS.length - 1})
-            </button>
-
-            <button
-              onClick={() => setActiveDimension('countries')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all min-h-[40px] ${
-                activeDimension === 'countries'
-                  ? 'bg-amber-500 text-stone-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 hover:bg-stone-900'
-              }`}
-            >
-              Countries Directory ({countryDirectory.length})
-            </button>
-
-            <button
-              onClick={() => setActiveDimension('cuisines')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all min-h-[40px] ${
-                activeDimension === 'cuisines'
-                  ? 'bg-amber-500 text-stone-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 hover:bg-stone-900'
-              }`}
-            >
-              Cuisines & Traditions
-            </button>
-
-            <button
-              onClick={() => setActiveDimension('meal_types')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all min-h-[40px] ${
-                activeDimension === 'meal_types'
-                  ? 'bg-amber-500 text-stone-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 hover:bg-stone-900'
-              }`}
-            >
-              Meal Types & Occasions
-            </button>
-
-            <button
-              onClick={() => setActiveDimension('dietary')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all min-h-[40px] ${
-                activeDimension === 'dietary'
-                  ? 'bg-amber-500 text-stone-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 hover:bg-stone-900'
-              }`}
-            >
-              Dietary & Lifestyle
-            </button>
-
-            <button
-              onClick={() => setActiveDimension('time_difficulty')}
-              className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all min-h-[40px] ${
-                activeDimension === 'time_difficulty'
-                  ? 'bg-amber-500 text-stone-950 font-bold shadow-md shadow-amber-500/20'
-                  : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 hover:bg-stone-900'
-              }`}
-            >
-              Time & Technique
-            </button>
+          <div className="flex items-center gap-1 p-1 bg-[#F4F0E8] rounded-xl border border-[#E8E1D7] overflow-x-auto scrollbar-none">
+            {[
+              { key: 'continents', label: `Continents (${CONTINENTS.length - 1})` },
+              { key: 'countries', label: `Country Index (${countryDirectory.length})` },
+              { key: 'cuisines', label: 'Cuisines & Traditions' },
+              { key: 'meal_types', label: 'Meal Types' },
+              { key: 'dietary', label: 'Dietary & Lifestyle' },
+              { key: 'time_difficulty', label: 'Time & Technique' }
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveDimension(tab.key as any)}
+                className={`px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  activeDimension === tab.key
+                    ? 'bg-white text-[#231B15] shadow-sm font-semibold'
+                    : 'text-[#6E6258] hover:text-[#231B15]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {/* Dimension Controls Content */}
@@ -402,20 +358,20 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                 <button
                   key={c.name}
                   onClick={() => setSelectedContinent(c.name)}
-                  className={`p-4 rounded-2xl border text-left transition-all ${
+                  className={`p-4 rounded-xl border text-left transition-all ${
                     selectedContinent === c.name
-                      ? 'bg-amber-500/10 border-amber-500 text-stone-100 shadow-lg'
-                      : 'bg-stone-900/60 border-stone-800 hover:border-stone-700 text-stone-300'
+                      ? 'bg-white border-[#231B15] shadow-sm ring-1 ring-[#231B15]'
+                      : 'bg-white/80 border-[#E8E1D7] hover:border-[#231B15]/40 hover:bg-white text-[#5E5248]'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-2xl">{c.icon}</span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
+                    <span className="text-xl">{c.icon}</span>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#F4F0E8] text-[#5E5248]">
                       {c.count} dishes
                     </span>
                   </div>
-                  <h3 className="font-serif font-bold text-base mt-2 text-stone-100">{c.name}</h3>
-                  <p className="text-[11px] text-stone-400 mt-0.5 line-clamp-1">{c.description}</p>
+                  <h3 className="font-serif font-bold text-base mt-2 text-[#231B15]">{c.name}</h3>
+                  <p className="text-[11px] text-[#8E8277] mt-0.5 line-clamp-1">{c.description}</p>
                 </button>
               ))}
             </div>
@@ -423,12 +379,12 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
           {activeDimension === 'countries' && (
             <div className="space-y-3 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between text-xs text-stone-400">
+              <div className="flex items-center justify-between text-xs text-[#8E8277]">
                 <span>Select a country to browse authentic regional dishes</span>
                 {selectedCountry !== 'All' && (
                   <button 
                     onClick={() => setSelectedCountry('All')}
-                    className="text-amber-400 hover:underline"
+                    className="text-[#C85A32] hover:underline font-medium"
                   >
                     Clear Country Filter
                   </button>
@@ -437,10 +393,10 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-72 overflow-y-auto pr-1">
                 <button
                   onClick={() => setSelectedCountry('All')}
-                  className={`p-2.5 rounded-xl border text-left text-xs font-medium transition-all ${
+                  className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all ${
                     selectedCountry === 'All'
-                      ? 'bg-amber-500 text-stone-950 font-bold border-amber-500'
-                      : 'bg-stone-900/60 border-stone-800 text-stone-300 hover:bg-stone-800'
+                      ? 'bg-[#231B15] text-[#FBF9F5] border-[#231B15]'
+                      : 'bg-white border-[#E8E1D7] text-[#5E5248] hover:bg-[#F4F0E8]'
                   }`}
                 >
                   🌍 All Countries
@@ -451,18 +407,18 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                     <button
                       key={c.country}
                       onClick={() => setSelectedCountry(c.country)}
-                      className={`p-2.5 rounded-xl border text-left text-xs font-medium transition-all flex items-center justify-between ${
+                      className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all flex items-center justify-between ${
                         selectedCountry === c.country
-                          ? 'bg-amber-500 text-stone-950 font-bold border-amber-500'
-                          : 'bg-stone-900/60 border-stone-800 text-stone-300 hover:bg-stone-800'
+                          ? 'bg-[#231B15] text-[#FBF9F5] border-[#231B15]'
+                          : 'bg-white border-[#E8E1D7] text-[#5E5248] hover:bg-[#F4F0E8]'
                       }`}
                     >
                       <span className="truncate">{c.country}</span>
                       <div className="flex items-center gap-1 shrink-0 ml-1">
                         {hasStamp && (
-                          <span title="Passport stamped!" className="text-[10px] text-amber-400">★</span>
+                          <span title="Passport stamped!" className="text-[10px] text-[#C85A32]">★</span>
                         )}
-                        <span className="text-[10px] text-stone-400 font-mono">({c.count})</span>
+                        <span className="text-[10px] text-[#8E8277] font-mono">({c.count})</span>
                       </div>
                     </button>
                   );
@@ -477,10 +433,10 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                 <button
                   key={cuisine}
                   onClick={() => setSelectedCuisine(cuisine)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
                     selectedCuisine === cuisine
-                      ? 'bg-amber-500 text-stone-950 font-bold shadow-md'
-                      : 'bg-stone-900/80 border border-stone-800 text-stone-300 hover:bg-stone-800'
+                      ? 'bg-[#231B15] text-[#FBF9F5] shadow-sm'
+                      : 'bg-white border border-[#E8E1D7] text-[#5E5248] hover:bg-[#F4F0E8]'
                   }`}
                 >
                   {cuisine}
@@ -495,10 +451,10 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                 <button
                   key={type}
                   onClick={() => setSelectedMealType(type)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
                     selectedMealType === type
-                      ? 'bg-amber-500 text-stone-950 font-bold shadow-md'
-                      : 'bg-stone-900/80 border border-stone-800 text-stone-300 hover:bg-stone-800'
+                      ? 'bg-[#231B15] text-[#FBF9F5] shadow-sm'
+                      : 'bg-white border border-[#E8E1D7] text-[#5E5248] hover:bg-[#F4F0E8]'
                   }`}
                 >
                   {type}
@@ -516,13 +472,13 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                     <button
                       key={diet}
                       onClick={() => toggleDietary(diet)}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                      className={`px-3.5 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
                         isSelected
-                          ? 'bg-amber-500 text-stone-950 font-bold shadow-md'
-                          : 'bg-stone-900/80 border border-stone-800 text-stone-300 hover:bg-stone-800'
+                          ? 'bg-[#5C6B38] text-white shadow-sm'
+                          : 'bg-white border border-[#E8E1D7] text-[#5E5248] hover:bg-[#F4F0E8]'
                       }`}
                     >
-                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
                       <span>{diet}</span>
                     </button>
                   );
@@ -530,13 +486,13 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
               </div>
 
               {/* Key Ingredients */}
-              <div className="pt-2 border-t border-stone-800/80">
-                <p className="text-xs text-stone-400 font-semibold mb-2">Filter by Key Ingredient:</p>
+              <div className="pt-2 border-t border-[#E8E1D7]">
+                <p className="text-xs text-[#8E8277] font-medium mb-2">Filter by Key Ingredient:</p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedIngredient('All')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-                      selectedIngredient === 'All' ? 'bg-amber-500 text-stone-950' : 'bg-stone-900 text-stone-300'
+                      selectedIngredient === 'All' ? 'bg-[#231B15] text-[#FBF9F5]' : 'bg-white border border-[#E8E1D7] text-[#5E5248]'
                     }`}
                   >
                     All Ingredients
@@ -546,7 +502,7 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                       key={ing}
                       onClick={() => setSelectedIngredient(ing)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-                        selectedIngredient === ing ? 'bg-amber-500 text-stone-950 font-bold' : 'bg-stone-900 text-stone-300 hover:bg-stone-800'
+                        selectedIngredient === ing ? 'bg-[#231B15] text-[#FBF9F5]' : 'bg-white border border-[#E8E1D7] text-[#5E5248] hover:bg-[#F4F0E8]'
                       }`}
                     >
                       {ing}
@@ -559,10 +515,10 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
           {activeDimension === 'time_difficulty' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-150">
-              <div className="p-4 rounded-2xl bg-stone-900/60 border border-stone-800 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" />
-                  Max Preparation + Cooking Time
+              <div className="p-4 rounded-xl bg-white border border-[#E8E1D7] space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#8E8277] flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[#C85A32]" />
+                  <span>Max Preparation + Cooking Time</span>
                 </h4>
                 <div className="grid grid-cols-4 gap-2">
                   {[
@@ -574,8 +530,8 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                     <button
                       key={t.label}
                       onClick={() => setMaxTime(t.val)}
-                      className={`py-2 px-1 text-center rounded-xl text-xs font-semibold ${
-                        maxTime === t.val ? 'bg-amber-500 text-stone-950' : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+                      className={`py-2 px-1 text-center rounded-lg text-xs font-medium ${
+                        maxTime === t.val ? 'bg-[#231B15] text-[#FBF9F5]' : 'bg-[#F4F0E8] text-[#5E5248] hover:bg-[#EAE4D9]'
                       }`}
                     >
                       {t.label}
@@ -584,18 +540,18 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-stone-900/60 border border-stone-800 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                  <ChefHat className="w-4 h-4" />
-                  Technique & Difficulty
+              <div className="p-4 rounded-xl bg-white border border-[#E8E1D7] space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-[#8E8277] flex items-center gap-1.5">
+                  <ChefHat className="w-3.5 h-3.5 text-[#5C6B38]" />
+                  <span>Technique & Difficulty</span>
                 </h4>
                 <div className="grid grid-cols-4 gap-2">
                   {['All', 'Easy', 'Medium', 'Advanced'].map(diff => (
                     <button
                       key={diff}
                       onClick={() => setSelectedDifficulty(diff)}
-                      className={`py-2 px-1 text-center rounded-xl text-xs font-semibold ${
-                        selectedDifficulty === diff ? 'bg-amber-500 text-stone-950' : 'bg-stone-800 text-stone-300 hover:bg-stone-700'
+                      className={`py-2 px-1 text-center rounded-lg text-xs font-medium ${
+                        selectedDifficulty === diff ? 'bg-[#231B15] text-[#FBF9F5]' : 'bg-[#F4F0E8] text-[#5E5248] hover:bg-[#EAE4D9]'
                       }`}
                     >
                       {diff}
@@ -607,30 +563,30 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
           )}
         </div>
 
-        {/* Active Filter Pills Bar & Sorting */}
+        {/* Results Metadata & Sorting */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 pb-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-stone-400 font-mono">
-              Showing <strong className="text-stone-100">{filteredRecipes.length}</strong> matching dishes
+          <div className="flex items-center gap-2 flex-wrap text-xs text-[#8E8277]">
+            <span className="font-mono">
+              Showing <strong className="text-[#231B15] font-semibold">{filteredRecipes.length}</strong> matching dishes
             </span>
 
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
-                className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 underline ml-2"
+                className="text-xs text-[#C85A32] hover:underline flex items-center gap-1 font-medium ml-2"
               >
                 <RotateCcw className="w-3 h-3" />
-                Reset all filters
+                <span>Reset all filters</span>
               </button>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-stone-400">Sort by:</span>
+            <span className="text-xs text-[#8E8277]">Sort:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-1.5 rounded-xl bg-stone-900 border border-stone-800 text-xs text-stone-200 focus:outline-none focus:border-amber-500"
+              className="px-3 py-1.5 rounded-lg bg-white border border-[#E8E1D7] text-xs text-[#231B15] focus:outline-none focus:border-[#231B15]"
             >
               <option value="recommended">Curated / Recommended</option>
               <option value="time">Fastest First</option>
@@ -643,23 +599,23 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
         {/* Recipe Results Grid */}
         {filteredRecipes.length === 0 ? (
-          <div className="p-12 text-center rounded-3xl bg-stone-900/40 border border-stone-800 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto">
+          <div className="p-12 text-center rounded-2xl bg-white border border-[#E8E1D7] space-y-4">
+            <div className="w-12 h-12 rounded-xl bg-[#F4F0E8] text-[#C85A32] flex items-center justify-center mx-auto">
               <Compass className="w-6 h-6" />
             </div>
-            <h3 className="font-serif text-xl font-bold text-stone-200">No dishes match this exact combination</h3>
-            <p className="text-xs text-stone-400 max-w-md mx-auto">
-              Try broadening your filters, searching by ingredient, or let AI Chef generate a custom recipe.
+            <h3 className="font-serif text-xl font-bold text-[#231B15]">No dishes match this exact combination</h3>
+            <p className="text-xs text-[#5E5248] max-w-md mx-auto">
+              Try broadening your filters, searching by ingredient, or asking AI Chef for guidance.
             </p>
             <button
               onClick={resetFilters}
-              className="px-6 py-2.5 rounded-xl bg-amber-500 text-stone-950 text-xs font-bold shadow-lg"
+              className="px-6 py-2.5 rounded-lg bg-[#231B15] text-[#FBF9F5] text-xs font-medium shadow-sm"
             >
               Reset Filters
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredRecipes.map(recipe => (
               <RecipeCard
                 key={recipe.recipeId}
@@ -669,11 +625,11 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
                 isPremiumUser={isPremium}
                 onSelect={(r) => onSelectRecipe(r)}
                 onToggleFavorite={(id, e) => {
-                  e.stopPropagation();
+                  e?.stopPropagation();
                   toggleFavorite(id);
                 }}
                 onDownload={(id, e) => {
-                  e.stopPropagation();
+                  e?.stopPropagation();
                   downloadRecipe(id);
                 }}
                 onOpenUnlockModal={onOpenUnlockModal}

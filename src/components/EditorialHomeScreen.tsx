@@ -7,17 +7,19 @@ import {
   Sparkles, 
   ArrowRight, 
   Dices, 
-  Download, 
   Check, 
-  Star, 
   ChevronRight, 
   ChevronLeft,
-  Globe2
+  Globe2,
+  BookOpen,
+  MapPin,
+  Heart
 } from 'lucide-react';
 import { Recipe, Continent } from '../types/recipe';
 import { ALL_RECIPES } from '../data/recipes';
 import { useAuth } from '../context/AuthContext';
 import { useKitchen } from '../context/KitchenContext';
+import { PersonalizationService } from '../services/personalizationService';
 import { RecipeCard } from './RecipeCard';
 
 interface EditorialHomeScreenProps {
@@ -29,7 +31,7 @@ interface EditorialHomeScreenProps {
   onOpenSearch: () => void;
 }
 
-// Iconic National Dishes for "Popular Around the World"
+// Curated iconic global dishes for Discovery Spotlight
 const POPULAR_DISH_IDS = [
   'ng-jollof-rice',
   'jp-tokyo-ramen',
@@ -57,7 +59,7 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
     downloadRecipe
   } = useKitchen();
 
-  // Curated hero featured recipe
+  // Curated hero featured recipe index
   const [heroIndex, setHeroIndex] = useState(0);
 
   // Curated hero pool
@@ -91,24 +93,28 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
       .filter(item => Boolean(item.recipe)) as Array<{ recipe: Recipe; entry: typeof cookingHistory[0] }>;
   }, [cookingHistory]);
 
-  // Recommended for You based on user preferences / starter picks
-  const recommendedRecipes = useMemo(() => {
-    let pool = ALL_RECIPES;
-    const userDietary = profile?.preferences?.dietary;
-    if (userDietary && userDietary.length > 0) {
-      const matchDietary = pool.filter(r => 
-        userDietary.some(p => r.dietaryTags.some(d => d.toLowerCase() === p.toLowerCase()))
-      );
-      if (matchDietary.length >= 3) pool = matchDietary;
-    }
-    return pool.slice(0, 6);
-  }, [profile]);
+  // True Behavior-Driven Personalization
+  const recommendedItems = useMemo(() => {
+    return PersonalizationService.getPersonalizedRecommendations(
+      {
+        cookingHistory,
+        favorites,
+        downloadedIds: downloadedRecipeIds,
+        viewedIds: [],
+        searchHistory: [],
+        preferences: profile?.preferences,
+        passportCountries: passport
+      },
+      ALL_RECIPES,
+      8
+    );
+  }, [cookingHistory, favorites, downloadedRecipeIds, profile?.preferences, passport]);
 
-  // Your Next Destination: Unexplored countries (not yet in passport)
+  // Your Next Destination: Unexplored countries from passport
   const nextDestinationRecipes = useMemo(() => {
     const visitedCodes = new Set(Object.keys(passport));
     const unexplored = ALL_RECIPES.filter(r => !visitedCodes.has(r.countryCode));
-    return unexplored.slice(0, 6);
+    return unexplored.slice(0, 8);
   }, [passport]);
 
   // Popular Around the World
@@ -118,12 +124,12 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
     return found.length > 0 ? found : ALL_RECIPES.slice(0, 8);
   }, []);
 
-  // Downloaded for Offline
-  const downloadedRecipes = useMemo(() => {
+  // Downloaded / Starter for Offline
+  const offlineReadyRecipes = useMemo(() => {
     return ALL_RECIPES.filter(r => r.isStarter || downloadedRecipeIds.has(r.recipeId)).slice(0, 8);
   }, [downloadedRecipeIds]);
 
-  // Cycle hero spotlight safely
+  // Cycle hero spotlight
   const nextHero = () => {
     if (heroFeaturedRecipes.length === 0) return;
     setHeroIndex((prev) => (prev + 1) % heroFeaturedRecipes.length);
@@ -135,414 +141,401 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 pb-24 animate-in fade-in duration-300 select-none">
+    <div className="min-h-screen bg-[#F7F3EC] text-[#29231E] pb-24 animate-in fade-in duration-200">
       
       {/* ------------------------------------------------------------- */}
-      {/* 1. HERO SECTION: WHERE ARE WE EATING TODAY?                    */}
+      {/* 1. EDITORIAL HERO SECTION                                     */}
       {/* ------------------------------------------------------------- */}
-      <section className="relative overflow-hidden border-b border-stone-800/80 bg-gradient-to-b from-stone-900/60 via-stone-950 to-stone-950 pt-4 pb-8 sm:pt-8 sm:pb-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative border-b border-[#E6DEC8] bg-[#FFFDF8]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
           
-          {/* Top Editorial Kicker & Action Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-stone-800/60">
-            <div>
-              <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold flex items-center gap-1.5">
-                <Compass className="w-3.5 h-3.5" />
-                DAILY CULINARY EXPEDITION
-              </span>
-              <h2 className="font-serif text-2xl sm:text-4xl font-bold text-stone-100 tracking-tight mt-0.5">
-                WHERE ARE WE EATING TODAY?
-              </h2>
+          {/* Magazine Sub-Header Ribbon */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-6 border-b border-[#E6DEC8] text-xs font-sans">
+            <div className="flex items-center gap-2 text-[#71675D]">
+              <span className="font-bold tracking-widest text-[#B85C3A] uppercase">Daily Culinary Digest</span>
+              <span className="text-[#D3C7B5]">•</span>
+              <span>Issue {new Date().getFullYear()}</span>
+              <span className="text-[#D3C7B5]">•</span>
+              <span>300+ Authentic Global Dishes</span>
             </div>
-
-            {/* Quick Surprise Me CTA in Header */}
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={onOpenSurpriseMe}
-                className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-bold text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all"
-              >
-                <Dices className="w-4 h-4" />
-                <span>🎲 Surprise Me</span>
-              </button>
-              <button
-                onClick={() => onOpenExplore('All')}
-                className="px-4 py-2.5 rounded-2xl bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-800 text-xs font-semibold flex items-center gap-1.5 transition-all"
-              >
-                <span>Browse World Atlas</span>
-                <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
-              </button>
+            <div className="flex items-center gap-3 text-[#71675D]">
+              <span>Discover Places Through Food</span>
             </div>
           </div>
 
-          {/* Large Editorial Hero Feature Showcase */}
-          <div className="mt-6 relative rounded-3xl overflow-hidden border border-stone-800 bg-stone-900 shadow-2xl group flex flex-col justify-end min-h-[460px] sm:min-h-[420px] lg:min-h-[460px]">
+          {/* Hero Feature Grid */}
+          <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
-            {/* Background Hero Image */}
-            <div className="absolute inset-0 w-full h-full overflow-hidden bg-stone-950">
-              <img
-                src={heroRecipe.image}
-                alt={heroRecipe.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80 sm:opacity-90"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/70 to-stone-950/20" />
-              <div className="absolute inset-0 bg-gradient-to-r from-stone-950/90 via-stone-950/50 to-transparent" />
-            </div>
-
-            {/* Hero Content Overlay */}
-            <div className="relative z-10 p-5 sm:p-8 lg:p-12 flex flex-col justify-between h-full min-h-[460px] sm:min-h-[420px] pointer-events-none">
+            {/* Left: Editorial Story & Title */}
+            <div className="lg:col-span-5 space-y-6">
               
-              {/* Top Country Flag & Origin Tag */}
-              <div className="flex items-center justify-between pointer-events-auto">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-950/85 backdrop-blur-md border border-stone-800 text-xs font-bold text-stone-200">
-                  <span className="text-base">{heroRecipe.countryCode === 'MA' ? '🇲🇦' : heroRecipe.countryCode === 'JP' ? '🇯🇵' : heroRecipe.countryCode === 'NG' ? '🇳🇬' : heroRecipe.countryCode === 'TH' ? '🇹🇭' : heroRecipe.countryCode === 'IT' ? '🇮🇹' : heroRecipe.countryCode === 'MX' ? '🇲🇽' : '🌍'}</span>
-                  <span className="tracking-wide uppercase font-serif text-amber-300">{heroRecipe.country}</span>
-                  <span className="text-stone-500">·</span>
-                  <span className="text-stone-400 font-normal">{heroRecipe.continent}</span>
-                </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF5EC] border border-[#E6DEC8] text-xs font-medium text-[#71675D]">
+                <MapPin className="w-3.5 h-3.5 text-[#B85C3A]" />
+                <span className="uppercase tracking-wider font-semibold text-[#29231E]">{heroRecipe.country}</span>
+                <span className="text-[#D3C7B5]">•</span>
+                <span>{heroRecipe.region || heroRecipe.continent}</span>
+              </div>
 
-                {/* Hero Carousel Navigation */}
-                <div className="flex items-center gap-1.5 bg-stone-950/80 backdrop-blur-md p-1 rounded-full border border-stone-800 pointer-events-auto">
+              <div className="space-y-3">
+                <p className="text-xs font-bold tracking-widest text-[#B85C3A] uppercase font-sans">Where are we eating today?</p>
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif font-bold text-[#29231E] leading-[1.08] tracking-tight">
+                  {heroRecipe.title}
+                </h1>
+                <p className="text-sm sm:text-base text-[#71675D] leading-relaxed line-clamp-3 font-sans">
+                  {heroRecipe.culturalBackground || heroRecipe.description}
+                </p>
+              </div>
+
+              {/* Dish Meta */}
+              <div className="flex flex-wrap items-center gap-4 py-3 border-y border-[#E6DEC8] text-xs text-[#71675D] font-sans">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-[#B85C3A]" />
+                  <span>{heroRecipe.totalTime} min total</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-[#B85C3A]" />
+                  <span>{heroRecipe.difficulty}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <ChefHat className="w-4 h-4 text-[#68745D]" />
+                  <span>{heroRecipe.servings} Servings</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  onClick={() => onSelectRecipe(heroRecipe)}
+                  className="px-6 py-3.5 rounded-lg bg-[#B85C3A] hover:bg-[#A34F30] text-white font-medium text-sm flex items-center gap-2 shadow-sm transition-all active:scale-98"
+                >
+                  <span>Start Cooking</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onOpenSurpriseMe}
+                  className="px-4 py-3.5 rounded-lg bg-[#FAF5EC] hover:bg-[#F2EADB] text-[#29231E] border border-[#E6DEC8] font-medium text-sm flex items-center gap-2 transition-all"
+                >
+                  <Dices className="w-4 h-4 text-[#B85C3A]" />
+                  <span>Surprise Dish</span>
+                </button>
+              </div>
+
+              {/* Carousel Indicators */}
+              <div className="flex items-center justify-between pt-4">
+                <div className="flex items-center gap-1.5">
+                  {heroFeaturedRecipes.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setHeroIndex(i)}
+                      className={`h-1.5 rounded-full transition-all ${
+                        i === safeHeroIndex ? 'w-6 bg-[#B85C3A]' : 'w-2 bg-[#E6DEC8]'
+                      }`}
+                      aria-label={`Slide ${i + 1}`}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={prevHero}
-                    aria-label="Previous destination"
-                    className="p-1.5 rounded-full hover:bg-stone-800 text-stone-300 hover:text-white transition-colors"
+                    className="p-2 rounded-lg bg-[#FAF5EC] hover:bg-[#F2EADB] border border-[#E6DEC8] text-[#71675D] transition-colors"
+                    aria-label="Previous Featured Dish"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <span className="text-[11px] font-mono px-1.5 text-stone-400">
-                    {safeHeroIndex + 1} / {totalHero}
-                  </span>
                   <button
                     onClick={nextHero}
-                    aria-label="Next destination"
-                    className="p-1.5 rounded-full hover:bg-stone-800 text-stone-300 hover:text-white transition-colors"
+                    className="p-2 rounded-lg bg-[#FAF5EC] hover:bg-[#F2EADB] border border-[#E6DEC8] text-[#71675D] transition-colors"
+                    aria-label="Next Featured Dish"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              {/* Bottom Title, Unboxed Metadata & Action */}
-              <div className="max-w-2xl space-y-2.5 sm:space-y-3 pointer-events-auto pt-6">
-                <h3 className="font-serif text-2xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-[1.15]">
-                  {heroRecipe.title}
-                </h3>
+            </div>
 
-                {heroRecipe.alternateName && (
-                  <p className="text-xs sm:text-base text-amber-300 font-serif italic">
-                    {heroRecipe.alternateName}
-                  </p>
-                )}
+            {/* Right: Immersive Dish Photography */}
+            <div className="lg:col-span-7">
+              <div
+                onClick={() => onSelectRecipe(heroRecipe)}
+                className="group relative aspect-[4/3] sm:aspect-[16/10] rounded-2xl overflow-hidden shadow-md border border-[#E6DEC8] cursor-pointer bg-[#29231E]"
+              >
+                <img
+                  src={heroRecipe.image}
+                  alt={heroRecipe.title}
+                  className="w-full h-full object-cover object-center group-hover:scale-103 transition-transform duration-500 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#29231E]/80 via-transparent to-black/20" />
 
-                {/* Unboxed Metadata with · separator */}
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-stone-300 font-medium">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                    {heroRecipe.totalTime} min
+                {/* Top badges */}
+                <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+                  <span className="px-3 py-1 rounded-full bg-[#29231E]/80 backdrop-blur-md text-white text-xs font-medium border border-white/10 flex items-center gap-1.5">
+                    <span>{heroRecipe.cuisine} Tradition</span>
                   </span>
-                  <span aria-hidden="true" className="text-stone-500">·</span>
-                  <span>{heroRecipe.difficulty}</span>
-                  <span aria-hidden="true" className="text-stone-500">·</span>
-                  <span>{heroRecipe.spiceLevel === 0 ? 'Mild' : `Spice ${heroRecipe.spiceLevel}/5`}</span>
-                  <span aria-hidden="true" className="text-stone-500">·</span>
-                  <span className="text-emerald-400 font-semibold">
-                    {heroRecipe.isStarter || downloadedRecipeIds.has(heroRecipe.recipeId) ? 'Offline Ready' : 'Global Collection'}
-                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(heroRecipe.recipeId);
+                    }}
+                    className="p-2 rounded-full bg-[#29231E]/80 backdrop-blur-md text-white hover:text-[#B85C3A] transition-colors border border-white/10"
+                    aria-label="Save dish"
+                  >
+                    <Heart
+                      className={`w-4 h-4 ${
+                        favorites.has(heroRecipe.recipeId) ? 'fill-[#B85C3A] text-[#B85C3A]' : ''
+                      }`}
+                    />
+                  </button>
                 </div>
 
-                <p className="text-xs sm:text-sm text-stone-300 line-clamp-2 leading-relaxed max-w-xl">
-                  {heroRecipe.description}
-                </p>
-
-                <div className="flex items-center gap-3 pt-2">
-                  <button
-                    onClick={() => onSelectRecipe(heroRecipe)}
-                    className="flex-1 sm:flex-none justify-center px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs sm:text-sm shadow-xl shadow-amber-500/25 active:scale-95 transition-all flex items-center gap-2"
-                  >
-                    <span>START COOKING</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={nextHero}
-                    className="sm:hidden px-4 py-3 rounded-2xl bg-stone-950/80 border border-stone-800 text-stone-300 text-xs font-semibold"
-                  >
-                    Next Dish →
-                  </button>
+                {/* Bottom caption overlay */}
+                <div className="absolute bottom-4 left-4 right-4 text-white">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#FFFDF8]/80 font-sans">{heroRecipe.country}</p>
+                      <h3 className="text-xl sm:text-2xl font-serif font-bold text-white drop-shadow-sm">
+                        {heroRecipe.title}
+                      </h3>
+                    </div>
+                    <span className="text-xs bg-[#FFFDF8] text-[#29231E] px-3 py-1.5 rounded-lg font-medium shadow flex items-center gap-1 group-hover:bg-[#B85C3A] group-hover:text-white transition-colors">
+                      View Recipe
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 2. RECOMMENDED FOR YOU (BEHAVIOR-DRIVEN PERSONALIZATION)       */}
+      {/* ------------------------------------------------------------- */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 pb-4 border-b border-[#E6DEC8]">
+          <div>
+            <div className="flex items-center gap-2 text-[#B85C3A] text-xs font-bold uppercase tracking-wider mb-1 font-sans">
+              <Sparkles className="w-4 h-4" />
+              <span>Tailored Selection</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#29231E]">
+              Recommended for You
+            </h2>
+          </div>
+          <p className="text-xs sm:text-sm text-[#71675D] max-w-md font-sans">
+            Personalized recipes crafted from your cooking journal, flavor preferences, and regional journeys.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {recommendedItems.map((item) => (
+            <div key={item.recipe.recipeId} className="flex flex-col">
+              <div className="text-[11px] font-medium text-[#B85C3A] mb-1.5 flex items-center gap-1 font-sans">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B85C3A]" />
+                <span>{item.reason}</span>
+              </div>
+              <RecipeCard
+                recipe={item.recipe}
+                isFavorite={favorites.has(item.recipe.recipeId)}
+                isDownloaded={downloadedRecipeIds.has(item.recipe.recipeId)}
+                onSelect={() => onSelectRecipe(item.recipe)}
+                onToggleFavorite={() => toggleFavorite(item.recipe.recipeId)}
+                onDownload={() => downloadRecipe(item.recipe)}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 3. CONTINUE COOKING (RECENT COOKING HISTORY)                   */}
+      {/* ------------------------------------------------------------- */}
+      {recentlyCookedRecipes.length > 0 && (
+        <section className="bg-[#FFFDF8] border-y border-[#E6DEC8] py-10 sm:py-14">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#E6DEC8]">
+              <div>
+                <div className="flex items-center gap-2 text-[#68745D] text-xs font-bold uppercase tracking-wider mb-1 font-sans">
+                  <BookOpen className="w-4 h-4" />
+                  <span>Cooking Journal</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#29231E]">
+                  Continue Cooking
+                </h2>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recentlyCookedRecipes.map(({ recipe, entry }) => (
+                <div
+                  key={entry.id}
+                  onClick={() => onSelectRecipe(recipe)}
+                  className="group bg-[#FAF5EC] rounded-xl p-4 border border-[#E6DEC8] hover:border-[#B85C3A]/50 transition-all cursor-pointer flex gap-4 items-center"
+                >
+                  <img
+                    src={recipe.image}
+                    alt={recipe.title}
+                    className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-[#71675D] font-sans">{recipe.country}</p>
+                    <h4 className="font-serif font-bold text-base text-[#29231E] group-hover:text-[#B85C3A] transition-colors truncate">
+                      {recipe.title}
+                    </h4>
+                    <p className="text-xs text-[#71675D] mt-1 font-sans">
+                      Cooked {new Date(entry.cookedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-[#8E8277] group-hover:text-[#B85C3A] group-hover:translate-x-0.5 transition-all" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* 4. YOUR NEXT DESTINATION (UNEXPLORED COUNTRIES)                */}
+      {/* ------------------------------------------------------------- */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 pb-4 border-b border-[#E6DEC8]">
+          <div>
+            <div className="flex items-center gap-2 text-[#B85C3A] text-xs font-bold uppercase tracking-wider mb-1 font-sans">
+              <Compass className="w-4 h-4" />
+              <span>Culinary Passport</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#29231E]">
+              Your Next Destination
+            </h2>
+          </div>
+          <button
+            onClick={() => onOpenExplore('All')}
+            className="text-xs sm:text-sm font-semibold text-[#B85C3A] hover:text-[#A34F30] flex items-center gap-1 font-sans"
+          >
+            Explore all countries
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {nextDestinationRecipes.map((recipe) => (
+            <RecipeCard
+              key={recipe.recipeId}
+              recipe={recipe}
+              isFavorite={favorites.has(recipe.recipeId)}
+              isDownloaded={downloadedRecipeIds.has(recipe.recipeId)}
+              onSelect={() => onSelectRecipe(recipe)}
+              onToggleFavorite={() => toggleFavorite(recipe.recipeId)}
+              onDownload={() => downloadRecipe(recipe)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 5. EXPLORE BY PLACE (CONTINENTS)                               */}
+      {/* ------------------------------------------------------------- */}
+      <section className="bg-[#FAF5EC] border-y border-[#E6DEC8] py-10 sm:py-14">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#29231E]">
+              Explore by Place
+            </h2>
+            <p className="text-sm text-[#71675D] mt-2 font-sans">
+              Journey across six continents through authentic regional cooking traditions.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              { continent: 'Africa', count: '65+ Recipes', color: 'bg-[#B85C3A]' },
+              { continent: 'Asia', count: '85+ Recipes', color: 'bg-[#68745D]' },
+              { continent: 'Europe', count: '70+ Recipes', color: 'bg-[#B18A58]' },
+              { continent: 'North America', count: '35+ Recipes', color: 'bg-[#71675D]' },
+              { continent: 'South America', count: '30+ Recipes', color: 'bg-[#B85C3A]' },
+              { continent: 'Oceania', count: '15+ Recipes', color: 'bg-[#68745D]' }
+            ].map((item) => (
+              <button
+                key={item.continent}
+                onClick={() => onOpenExplore(item.continent as Continent)}
+                className="group bg-[#FFFDF8] rounded-xl p-5 border border-[#E6DEC8] hover:border-[#B85C3A] transition-all text-center flex flex-col items-center justify-center gap-2 shadow-xs hover:shadow-md"
+              >
+                <div className={`w-10 h-10 rounded-full ${item.color}/15 flex items-center justify-center text-[#29231E] group-hover:scale-110 transition-transform`}>
+                  <Globe2 className="w-5 h-5 text-[#29231E]" />
+                </div>
+                <span className="font-serif font-bold text-base text-[#29231E] group-hover:text-[#B85C3A] transition-colors">
+                  {item.continent}
+                </span>
+                <span className="text-[11px] text-[#71675D] font-sans">{item.count}</span>
+              </button>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ------------------------------------------------------------- */}
-      {/* 2. MAIN CURATED EDITORIAL CONTENT SHELVES                      */}
+      {/* 6. POPULAR AROUND THE WORLD                                   */}
       {/* ------------------------------------------------------------- */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16 mt-8 sm:mt-12">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 pb-4 border-b border-[#E6DEC8]">
+          <div>
+            <div className="flex items-center gap-2 text-[#B85C3A] text-xs font-bold uppercase tracking-wider mb-1 font-sans">
+              <Globe2 className="w-4 h-4" />
+              <span>World Icons</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#29231E]">
+              Popular Around the World
+            </h2>
+          </div>
+        </div>
 
-        {/* ----------------------------------------------------------- */}
-        {/* SECTION: Recommended for You                                */}
-        {/* ----------------------------------------------------------- */}
-        <section className="space-y-4">
-          <div className="flex items-end justify-between border-b border-stone-800/80 pb-3">
-            <div>
-              <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
-                TAILORED PALATE
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {popularRecipes.map((recipe) => (
+            <RecipeCard
+              key={recipe.recipeId}
+              recipe={recipe}
+              isFavorite={favorites.has(recipe.recipeId)}
+              isDownloaded={downloadedRecipeIds.has(recipe.recipeId)}
+              onSelect={() => onSelectRecipe(recipe)}
+              onToggleFavorite={() => toggleFavorite(recipe.recipeId)}
+              onDownload={() => downloadRecipe(recipe)}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 7. UNLOCK BANNER (IF NOT PREMIUM)                              */}
+      {/* ------------------------------------------------------------- */}
+      {!isPremium && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+          <div className="rounded-2xl bg-gradient-to-br from-[#29231E] via-[#352B24] to-[#29231E] text-white p-8 sm:p-12 border border-[#B18A58]/30 shadow-lg relative overflow-hidden">
+            <div className="max-w-2xl relative z-10 space-y-4">
+              <span className="text-xs font-bold tracking-widest text-[#B18A58] uppercase font-sans">
+                Curator Collection
               </span>
-              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100 mt-0.5">
-                Recommended for You
+              <h3 className="text-3xl sm:text-4xl font-serif font-bold leading-tight">
+                Unlock the World
               </h3>
-            </div>
-            <button
-              onClick={() => onOpenExplore('All')}
-              className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 group"
-            >
-              <span>Explore Collection</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {recommendedRecipes.map(recipe => (
-              <RecipeCard
-                key={recipe.recipeId}
-                recipe={recipe}
-                isFavorite={favorites.has(recipe.recipeId)}
-                isDownloaded={downloadedRecipeIds.has(recipe.recipeId)}
-                isPremiumUser={isPremium}
-                onSelect={(r) => onSelectRecipe(r)}
-                onToggleFavorite={(id, e) => {
-                  e.stopPropagation();
-                  toggleFavorite(id);
-                }}
-                onDownload={(id, e) => {
-                  e.stopPropagation();
-                  downloadRecipe(id);
-                }}
-                onOpenUnlockModal={onOpenUnlockModal}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ----------------------------------------------------------- */}
-        {/* SECTION: Continue Cooking & Recently Cooked                 */}
-        {/* ----------------------------------------------------------- */}
-        {recentlyCookedRecipes.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-end justify-between border-b border-stone-800/80 pb-3">
-              <div>
-                <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
-                  YOUR KITCHEN ADVENTURES
-                </span>
-                <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100 mt-0.5">
-                  Recently Cooked
-                </h3>
-              </div>
-              <span className="text-xs text-stone-400">
-                {cookingHistory.length} dishes prepared
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {recentlyCookedRecipes.map(({ recipe, entry }) => (
-                <div
-                  key={entry.id}
-                  onClick={() => onSelectRecipe(recipe)}
-                  className="relative rounded-2xl bg-stone-900 border border-stone-800 hover:border-amber-500/50 p-4 transition-all cursor-pointer group shadow-lg flex items-center gap-4"
+              <p className="text-sm sm:text-base text-[#D3C7B5] leading-relaxed font-sans">
+                300+ recipes across 50+ countries and 6 continents. Download dishes for offline cooking in the kitchen, with AI Chef fair-use access included.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 pt-2">
+                <button
+                  onClick={onOpenUnlockModal}
+                  className="px-6 py-3 rounded-lg bg-[#B85C3A] hover:bg-[#A34F30] text-white font-medium text-sm transition-all shadow-sm"
                 >
-                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-stone-950 shrink-0">
-                    <img
-                      src={entry.photoUrl || recipe.image}
-                      alt={recipe.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs text-stone-400">
-                      <span>{recipe.country}</span>
-                      <span>•</span>
-                      <span>{new Date(entry.cookedAt).toLocaleDateString()}</span>
-                    </div>
-                    <h4 className="font-serif font-bold text-sm sm:text-base text-stone-100 truncate group-hover:text-amber-400 transition-colors">
-                      {recipe.title}
-                    </h4>
-                    {entry.rating && (
-                      <div className="flex items-center gap-1 text-amber-400 text-xs">
-                        {[...Array(entry.rating)].map((_, i) => (
-                          <Star key={i} className="w-3 h-3 fill-amber-400" />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ----------------------------------------------------------- */}
-        {/* SECTION: Your Next Destination (Unexplored Countries)       */}
-        {/* ----------------------------------------------------------- */}
-        {nextDestinationRecipes.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-end justify-between border-b border-stone-800/80 pb-3">
-              <div>
-                <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
-                  UNEXPLORED TERRITORIES
-                </span>
-                <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100 mt-0.5">
-                  Your Next Destination
-                </h3>
+                  Unlock Now — ₦2,500 One-Time
+                </button>
               </div>
-              <p className="text-xs text-stone-400 hidden sm:block">
-                Cook and collect new Food Passport stamps
-              </p>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {nextDestinationRecipes.map(recipe => (
-                <RecipeCard
-                  key={recipe.recipeId}
-                  recipe={recipe}
-                  isFavorite={favorites.has(recipe.recipeId)}
-                  isDownloaded={downloadedRecipeIds.has(recipe.recipeId)}
-                  isPremiumUser={isPremium}
-                  onSelect={(r) => onSelectRecipe(r)}
-                  onToggleFavorite={(id, e) => {
-                    e.stopPropagation();
-                    toggleFavorite(id);
-                  }}
-                  onDownload={(id, e) => {
-                    e.stopPropagation();
-                    downloadRecipe(id);
-                  }}
-                  onOpenUnlockModal={onOpenUnlockModal}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ----------------------------------------------------------- */}
-        {/* SECTION: Popular Around the World                           */}
-        {/* ----------------------------------------------------------- */}
-        <section className="space-y-4">
-          <div className="flex items-end justify-between border-b border-stone-800/80 pb-3">
-            <div>
-              <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
-                ICONIC DISHES
-              </span>
-              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100 mt-0.5">
-                Popular Around the World
-              </h3>
-            </div>
-            <button
-              onClick={() => onOpenExplore('All')}
-              className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 group"
-            >
-              <span>See All</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {popularRecipes.map(recipe => (
-              <RecipeCard
-                key={recipe.recipeId}
-                recipe={recipe}
-                isFavorite={favorites.has(recipe.recipeId)}
-                isDownloaded={downloadedRecipeIds.has(recipe.recipeId)}
-                isPremiumUser={isPremium}
-                onSelect={(r) => onSelectRecipe(r)}
-                onToggleFavorite={(id, e) => {
-                  e.stopPropagation();
-                  toggleFavorite(id);
-                }}
-                onDownload={(id, e) => {
-                  e.stopPropagation();
-                  downloadRecipe(id);
-                }}
-                onOpenUnlockModal={onOpenUnlockModal}
-              />
-            ))}
           </div>
         </section>
+      )}
 
-        {/* ----------------------------------------------------------- */}
-        {/* SECTION: Downloaded for Offline                             */}
-        {/* ----------------------------------------------------------- */}
-        <section className="space-y-4 p-6 sm:p-8 rounded-3xl bg-stone-900/50 border border-stone-800/90">
-          <div className="flex items-end justify-between border-b border-stone-800/80 pb-3">
-            <div>
-              <span className="text-[11px] uppercase tracking-widest text-emerald-400 font-bold flex items-center gap-1.5">
-                <Download className="w-3.5 h-3.5" />
-                OFFLINE COOKING VAULT
-              </span>
-              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100 mt-0.5">
-                Downloaded for Offline
-              </h3>
-              <p className="text-xs text-stone-400 mt-0.5">
-                Always available in your kitchen without internet connection.
-              </p>
-            </div>
-            <span className="text-xs font-mono text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-800 px-3 py-1 rounded-full">
-              {downloadedRecipes.length} Ready
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {downloadedRecipes.map(recipe => (
-              <RecipeCard
-                key={recipe.recipeId}
-                recipe={recipe}
-                isFavorite={favorites.has(recipe.recipeId)}
-                isDownloaded={true}
-                isPremiumUser={isPremium}
-                onSelect={(r) => onSelectRecipe(r)}
-                onToggleFavorite={(id, e) => {
-                  e.stopPropagation();
-                  toggleFavorite(id);
-                }}
-                onDownload={(id, e) => {
-                  e.stopPropagation();
-                  downloadRecipe(id);
-                }}
-                onOpenUnlockModal={onOpenUnlockModal}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ----------------------------------------------------------- */}
-        {/* EDITORIAL BANNER: EXPLORE THE ENTIRE GLOBE                  */}
-        {/* ----------------------------------------------------------- */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-950/30 via-stone-900 to-stone-950 border border-amber-500/30 p-8 sm:p-12 text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
-            <Globe2 className="w-6 h-6" />
-          </div>
-          <h3 className="font-serif text-2xl sm:text-4xl font-bold text-stone-100">
-            300+ Authentic Recipes Across 50+ Countries
-          </h3>
-          <p className="text-xs sm:text-sm text-stone-300 max-w-xl mx-auto leading-relaxed">
-            Search by ingredients you have at home, explore regional culinary traditions, and bring global kitchens to your dinner table.
-          </p>
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <button
-              onClick={() => onOpenExplore('All')}
-              className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-bold text-xs sm:text-sm shadow-xl shadow-amber-500/20 transition-all"
-            >
-              Open Full World Atlas
-            </button>
-            <button
-              onClick={onOpenSurpriseMe}
-              className="px-6 py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 active:scale-95 text-stone-200 border border-stone-800 font-semibold text-xs sm:text-sm transition-all"
-            >
-              🎲 Surprise Me
-            </button>
-          </div>
-        </section>
-      </div>
     </div>
   );
 };

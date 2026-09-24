@@ -37,12 +37,12 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
 
   // Continents Explorer Badges
   const continentBadges: Array<{ id: string; name: string; continent: Continent; icon: string; unlocked: boolean }> = [
-    { id: 'africa', name: 'African Pioneer', continent: 'Africa', icon: '🌍', unlocked: visitedContinents.has('Africa') },
-    { id: 'asia', name: 'Asian Feast Master', continent: 'Asia', icon: '🥢', unlocked: visitedContinents.has('Asia') },
-    { id: 'europe', name: 'European Tour Gourmet', continent: 'Europe', icon: '🏛️', unlocked: visitedContinents.has('Europe') },
-    { id: 'na', name: 'North American Explorer', continent: 'North America', icon: '🌮', unlocked: visitedContinents.has('North America') },
-    { id: 'sa', name: 'South American Asador', continent: 'South America', icon: '🥩', unlocked: visitedContinents.has('South America') },
-    { id: 'oceania', name: 'Oceania Voyager', continent: 'Oceania', icon: '🏝️', unlocked: visitedContinents.has('Oceania') }
+    { id: 'africa', name: 'African Hearth', continent: 'Africa', icon: '🌍', unlocked: visitedContinents.has('Africa') },
+    { id: 'asia', name: 'Silk Route Master', continent: 'Asia', icon: '🥢', unlocked: visitedContinents.has('Asia') },
+    { id: 'europe', name: 'Old World Gourmet', continent: 'Europe', icon: '🏛️', unlocked: visitedContinents.has('Europe') },
+    { id: 'na', name: 'New World Explorer', continent: 'North America', icon: '🌮', unlocked: visitedContinents.has('North America') },
+    { id: 'sa', name: 'Andean Asador', continent: 'South America', icon: '🥩', unlocked: visitedContinents.has('South America') },
+    { id: 'oceania', name: 'Pacific Voyager', continent: 'Oceania', icon: '🏝️', unlocked: visitedContinents.has('Oceania') }
   ];
 
   const isGlobeTrotter = continentBadges.every(b => b.unlocked);
@@ -56,48 +56,46 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-in fade-in duration-200">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8 animate-in fade-in duration-200">
       
       {/* Passport Book Cover Header */}
-      <div className="relative rounded-3xl bg-gradient-to-r from-amber-950/60 via-stone-900 to-stone-950 border border-amber-500/30 p-6 sm:p-10 shadow-2xl overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        
+      <div className="relative rounded-2xl bg-[#F7F4EE] border border-[#E8E1D7] p-6 sm:p-10 shadow-sm overflow-hidden">
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-widest">
-              <Compass className="w-4 h-4" />
-              <span>Official Global Culinary Document</span>
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#C85A32] uppercase tracking-widest">
+              <Compass className="w-3.5 h-3.5" />
+              <span>Official Global Gastronomy Record</span>
             </div>
             
-            <h1 className="font-serif text-3xl sm:text-5xl font-black text-white tracking-tight">
+            <h1 className="font-serif text-3xl sm:text-5xl font-bold text-[#231B15] tracking-tight">
               Food Passport
             </h1>
             
-            <p className="text-sm sm:text-base text-stone-300 max-w-xl leading-relaxed">
-              Every time you prepare a recipe, stamp this passport with that nation’s culinary seal. 
-              Track your journey across 50+ countries and all 6 continents.
+            <p className="text-xs sm:text-sm text-[#5E5248] max-w-xl leading-relaxed">
+              Every time you prepare a recipe, stamp this culinary journal with that nation’s seal. 
+              Track your authentic cooking journey across 52 countries and all 6 continental hearths.
             </p>
           </div>
 
-          {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-stone-950/60 p-4 rounded-2xl border border-stone-800 backdrop-blur-md">
+          {/* Clean Editorial Stats Matrix */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-4 rounded-xl border border-[#E8E1D7] shadow-sm">
             <div className="text-center p-2">
-              <p className="font-mono text-2xl sm:text-3xl font-bold text-amber-400">{totalVisited}</p>
-              <p className="text-[11px] text-stone-400 mt-0.5">Nations Stamped</p>
+              <p className="font-mono text-2xl sm:text-3xl font-bold text-[#C85A32]">{totalVisited}</p>
+              <p className="text-[11px] text-[#8E8277] mt-0.5 uppercase tracking-wider font-medium">Nations</p>
             </div>
             <div className="text-center p-2">
-              <p className="font-mono text-2xl sm:text-3xl font-bold text-stone-100">{totalDishesCooked}</p>
-              <p className="text-[11px] text-stone-400 mt-0.5">Dishes Cooked</p>
+              <p className="font-mono text-2xl sm:text-3xl font-bold text-[#231B15]">{totalDishesCooked}</p>
+              <p className="text-[11px] text-[#8E8277] mt-0.5 uppercase tracking-wider font-medium">Cooked</p>
             </div>
             <div className="text-center p-2">
-              <p className="font-mono text-2xl sm:text-3xl font-bold text-amber-400">{visitedContinents.size}/6</p>
-              <p className="text-[11px] text-stone-400 mt-0.5">Continents</p>
+              <p className="font-mono text-2xl sm:text-3xl font-bold text-[#5C6B38]">{visitedContinents.size}/6</p>
+              <p className="text-[11px] text-[#8E8277] mt-0.5 uppercase tracking-wider font-medium">Continents</p>
             </div>
             <div className="text-center p-2">
-              <p className="font-mono text-2xl sm:text-3xl font-bold text-emerald-400">
+              <p className="font-mono text-2xl sm:text-3xl font-bold text-[#231B15]">
                 {Math.round((totalVisited / COUNTRIES_DATABASE.length) * 100)}%
               </p>
-              <p className="text-[11px] text-stone-400 mt-0.5">World Complete</p>
+              <p className="text-[11px] text-[#8E8277] mt-0.5 uppercase tracking-wider font-medium">World Map</p>
             </div>
           </div>
         </div>
@@ -107,15 +105,15 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-amber-400" />
-            <h2 className="font-serif text-xl font-bold text-stone-100">
-              Continental Milestones & Badges
+            <Award className="w-4 h-4 text-[#C85A32]" />
+            <h2 className="font-serif text-lg sm:text-xl font-bold text-[#231B15]">
+              Continental Milestones
             </h2>
           </div>
           {isGlobeTrotter && (
-            <span className="text-xs px-3 py-1 rounded-full bg-amber-500 text-stone-950 font-bold flex items-center gap-1 shadow-md">
+            <span className="text-xs px-3 py-1 rounded-md bg-[#FAF5E8] border border-[#E8DAB7] text-[#9E740B] font-semibold flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5" />
-              Master Globe Trotter (6/6)
+              <span>Master Globe Trotter (6/6)</span>
             </span>
           )}
         </div>
@@ -124,19 +122,19 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
           {continentBadges.map((badge) => (
             <div
               key={badge.id}
-              className={`p-4 rounded-2xl border text-center transition-all ${
+              className={`p-4 rounded-xl border text-center transition-all ${
                 badge.unlocked
-                  ? 'bg-stone-900/90 border-amber-500/50 shadow-lg shadow-amber-500/5'
-                  : 'bg-stone-900/40 border-stone-800/60 opacity-60'
+                  ? 'bg-white border-[#5C6B38] shadow-sm'
+                  : 'bg-white/60 border-[#E8E1D7] opacity-60'
               }`}
             >
               <div className="text-2xl mb-2">{badge.icon}</div>
-              <p className="font-bold text-xs text-stone-100 line-clamp-1">{badge.name}</p>
-              <p className="text-[10px] text-stone-400 mt-0.5">{badge.continent}</p>
-              <span className={`inline-block mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                badge.unlocked ? 'bg-amber-500/20 text-amber-400' : 'bg-stone-800 text-stone-500'
+              <p className="font-serif font-bold text-xs text-[#231B15] line-clamp-1">{badge.name}</p>
+              <p className="text-[10px] text-[#8E8277] mt-0.5">{badge.continent}</p>
+              <span className={`inline-block mt-2 text-[10px] font-medium px-2 py-0.5 rounded ${
+                badge.unlocked ? 'bg-[#F2F5EC] text-[#5C6B38] border border-[#D5DEBF]' : 'bg-[#F4F0E8] text-[#8E8277]'
               }`}>
-                {badge.unlocked ? 'Unlocked' : 'Locked'}
+                {badge.unlocked ? 'Stamped' : 'Unexplored'}
               </span>
             </div>
           ))}
@@ -145,13 +143,13 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
 
       {/* PASSPORT STAMPS GRID */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-stone-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E8E1D7]">
           <div>
-            <h2 className="font-serif text-xl font-bold text-stone-100">
-              National Passport Stamps
+            <h2 className="font-serif text-lg sm:text-xl font-bold text-[#231B15]">
+              National Stamps & Regional Heritage
             </h2>
-            <p className="text-xs text-stone-400 mt-0.5">
-              Click any nation to find authentic recipes or see your cooked milestones.
+            <p className="text-xs text-[#8E8277] mt-0.5">
+              Select any nation to discover authentic dishes or view your cooking journal.
             </p>
           </div>
 
@@ -161,10 +159,10 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
               <button
                 key={c}
                 onClick={() => setSelectedContinentFilter(c as any)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all border ${
                   selectedContinentFilter === c
-                    ? 'bg-amber-500 text-stone-950 font-bold'
-                    : 'bg-stone-900 text-stone-400 hover:text-stone-200'
+                    ? 'bg-[#231B15] text-[#FBF9F5] border-[#231B15]'
+                    : 'bg-white text-[#5E5248] border-[#E8E1D7] hover:border-[#231B15]/40'
                 }`}
               >
                 {c}
@@ -183,16 +181,16 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
               <div
                 key={c.code}
                 onClick={() => onExploreCountry(c.country)}
-                className={`group relative p-5 rounded-3xl border transition-all cursor-pointer overflow-hidden ${
+                className={`group relative p-5 rounded-xl border transition-all cursor-pointer overflow-hidden ${
                   isStamped
-                    ? 'bg-stone-900/90 border-amber-500/40 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/10'
-                    : 'bg-stone-900/30 border-stone-800/70 hover:border-stone-700 opacity-75'
+                    ? 'bg-white border-[#5C6B38]/60 hover:border-[#5C6B38] shadow-sm hover:shadow-md'
+                    : 'bg-white/70 border-[#E8E1D7] hover:border-[#231B15]/40 hover:bg-white'
                 }`}
               >
-                {/* Stamp graphic seal in corner if visited */}
+                {/* Vintage postal stamp watermark */}
                 {isStamped && (
-                  <div className="absolute top-3 right-3 w-14 h-14 rounded-full border-2 border-amber-400/30 flex items-center justify-center rotate-12 pointer-events-none">
-                    <div className="w-11 h-11 rounded-full border border-dashed border-amber-400/40 flex flex-col items-center justify-center text-[8px] font-mono text-amber-400/80 font-bold uppercase tracking-tighter">
+                  <div className="absolute top-3 right-3 w-14 h-14 rounded-full border-2 border-[#5C6B38]/30 flex items-center justify-center rotate-12 pointer-events-none">
+                    <div className="w-11 h-11 rounded-full border border-dashed border-[#5C6B38]/40 flex flex-col items-center justify-center text-[8px] font-mono text-[#5C6B38] font-bold uppercase tracking-tighter">
                       <span>PASSPORT</span>
                       <span>STAMPED</span>
                     </div>
@@ -202,41 +200,41 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold text-amber-400">{c.code}</span>
-                      <h3 className="font-serif text-lg font-bold text-stone-100 group-hover:text-amber-400 transition-colors">
+                      <span className="font-mono text-xs font-bold text-[#C85A32]">{c.code}</span>
+                      <h3 className="font-serif text-base sm:text-lg font-bold text-[#231B15] group-hover:text-[#C85A32] transition-colors">
                         {c.country}
                       </h3>
                     </div>
-                    <p className="text-xs text-stone-400 mt-0.5">
-                      {c.cuisine} Cuisine • {c.region}
+                    <p className="text-xs text-[#8E8277] mt-0.5">
+                      {c.cuisine} Cuisine · {c.region}
                     </p>
                   </div>
                 </div>
 
                 {isStamped ? (
-                  <div className="mt-4 pt-3 border-t border-stone-800/80 space-y-2">
-                    <div className="flex items-center justify-between text-xs text-stone-300">
-                      <span className="flex items-center gap-1.5 text-amber-400 font-semibold">
+                  <div className="mt-4 pt-3 border-t border-[#E8E1D7] space-y-2">
+                    <div className="flex items-center justify-between text-xs text-[#5E5248]">
+                      <span className="flex items-center gap-1.5 text-[#5C6B38] font-medium">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Cooked {stampedInfo.recipesCooked} {stampedInfo.recipesCooked === 1 ? 'dish' : 'dishes'}
                       </span>
-                      <span className="text-[11px] text-stone-400">
+                      <span className="text-[11px] text-[#8E8277]">
                         {new Date(stampedInfo.lastCookedAt).toLocaleDateString()}
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap gap-1 pt-1">
+                    <div className="flex flex-wrap gap-1.5 pt-1">
                       {stampedInfo.dishNames.slice(0, 2).map((d, i) => (
-                        <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-stone-800 text-stone-300 font-medium">
+                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-[#F4F0E8] text-[#5E5248] font-medium">
                           {d}
                         </span>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-4 pt-3 border-t border-stone-800/50 flex items-center justify-between text-xs text-stone-500">
+                  <div className="mt-4 pt-3 border-t border-[#E8E1D7] flex items-center justify-between text-xs text-[#8E8277]">
                     <span>Awaiting your culinary arrival</span>
-                    <span className="text-amber-400/70 group-hover:text-amber-400 group-hover:underline flex items-center gap-0.5 text-[11px] font-medium">
+                    <span className="text-[#C85A32] group-hover:underline flex items-center gap-0.5 text-xs font-medium">
                       Cook this country →
                     </span>
                   </div>

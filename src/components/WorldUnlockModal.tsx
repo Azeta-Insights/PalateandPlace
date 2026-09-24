@@ -3,13 +3,8 @@ import {
   X, 
   Crown, 
   Check, 
-  Sparkles, 
   Globe, 
-  Download, 
-  Award, 
-  ShieldCheck, 
   CreditCard, 
-  Zap,
   ArrowRight,
   ArrowLeft
 } from 'lucide-react';
@@ -26,7 +21,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { user, profile, isPremium, isAdmin, requestTestPremium, devFastUnlockPremium, applyEntitlement } = useAuth();
+  const { user, isPremium, requestTestPremium, devFastUnlockPremium, applyEntitlement } = useAuth();
   const [loadingPaystack, setLoadingPaystack] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [testRequestSuccess, setTestRequestSuccess] = useState('');
@@ -45,7 +40,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // 2. Browser Back Button / Mobile Swipe back listener to return to homepage seamlessly
+  // 2. Browser Back Button / Mobile Swipe back listener
   useEffect(() => {
     if (!isOpen) return;
     window.history.pushState({ modal: 'world-unlock' }, '');
@@ -56,7 +51,6 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
 
     window.addEventListener('popstate', handlePopState);
 
-    // Prevent background scrolling while modal is open
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -84,9 +78,12 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
     setLoadingPaystack(true);
     setErrorMessage('');
 
+    const idToken = user ? await user.getIdToken() : '';
+
     await PaystackService.initiateWorldUnlock(
       user?.email || 'guest@palateandplace.app',
       user?.uid || '',
+      idToken,
       (result) => {
         setLoadingPaystack(false);
         if (result.entitlement && applyEntitlement) {
@@ -99,7 +96,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
       },
       (err) => {
         setLoadingPaystack(false);
-        setErrorMessage(err);
+        setErrorMessage(typeof err === 'string' ? err : 'Payment initiation failed');
       }
     );
   };
@@ -107,7 +104,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
   const handleRequestTest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      setErrorMessage('Please sign in first to request test premium access.');
+      setErrorMessage('Please sign in first to request reviewer access.');
       return;
     }
 
@@ -130,55 +127,53 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
         onClose();
       }, 800);
     } else {
-      setErrorMessage('Dev quick unlock failed.');
+      setErrorMessage('Direct curator activation failed.');
     }
   };
 
   const PERKS = [
-    { title: 'All 300+ Global Recipes', desc: 'Unlock every dish from over 50 countries around the world.' },
-    { title: '100 Chef Questions Each Month', desc: 'Get quick ingredient swaps, step-by-step guidance, and cooking help.' },
-    { title: 'Unlimited Offline Recipes', desc: 'Save as many recipes as you want to cook anytime, even without internet.' },
-    { title: 'Food Passport & Travel Badges', desc: 'Collect country stamps and badges as you cook your way around the globe.' },
-    { title: 'Pay Once, Keep Forever', desc: 'Just ₦2,500 (approx. $3.00 USD) one time. No recurring fees or subscriptions.' }
+    { title: 'All 300+ Global Recipes', desc: 'Unlock every dish from over 50 countries and 6 continents.' },
+    { title: '100 AI Chef Inquiries Each Month', desc: 'Get culinary technique guidance, substitutions, and recipe scaling.' },
+    { title: 'Unlimited Offline Saved Dishes', desc: 'Save entire regional collections to cook anywhere without connectivity.' },
+    { title: 'Food Passport Stamps & Milestones', desc: 'Collect country stamps and continental badges as you cook around the globe.' },
+    { title: 'Pay Once, Keep Forever', desc: 'Just ₦2,500 (approx. $3.00 USD) one time. No recurring subscription fees.' }
   ];
 
   return (
-    /* Backdrop: clicking backdrop calls onClose() seamlessly */
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/85 backdrop-blur-md flex justify-center items-start sm:items-center p-3 sm:p-6 py-6 sm:py-10 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/60 backdrop-blur-sm flex justify-center items-start sm:items-center p-3 sm:p-6 py-6 sm:py-10 animate-in fade-in duration-200"
     >
-      {/* Modal Dialog Card: clicking inside does not trigger backdrop close */}
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-xl bg-stone-950 rounded-3xl border border-stone-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 my-auto sm:my-0"
+        className="relative w-full max-w-xl bg-[#FBF9F5] rounded-3xl border border-[#E8E1D7] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 my-auto sm:my-0"
       >
         
-        {/* Top-Right Close Button with clear tooltip and hover state */}
+        {/* Top-Right Close Button */}
         <button
           onClick={onClose}
           aria-label="Close and return to cookbook"
-          className="absolute top-4 right-4 p-2.5 rounded-full bg-stone-900/90 hover:bg-stone-800 text-stone-300 hover:text-white border border-stone-800 transition-all z-20 hover:scale-105 active:scale-95"
+          className="absolute top-4 right-4 p-2.5 rounded-full bg-white/90 hover:bg-[#F4F0E8] text-[#8E8277] hover:text-[#231B15] border border-[#E8E1D7] transition-all z-20 hover:scale-105 active:scale-95 shadow-sm"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="p-6 sm:p-8 bg-gradient-to-b from-amber-950/40 via-stone-900/60 to-transparent border-b border-stone-800/80 text-center space-y-3">
-          <div className="w-14 h-14 rounded-3xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-700 text-stone-950 flex items-center justify-center mx-auto shadow-xl shadow-amber-500/25">
+        <div className="p-6 sm:p-8 bg-[#F7F4EE] border-b border-[#E8E1D7] text-center space-y-3">
+          <div className="w-14 h-14 rounded-3xl bg-[#231B15] text-[#E8DAB7] flex items-center justify-center mx-auto shadow-md">
             <Crown className="w-7 h-7 stroke-[2.2]" />
           </div>
 
-          <span className="inline-block text-xs font-bold text-amber-400 uppercase tracking-widest">
-            Palate & Place Pass
+          <span className="inline-block text-xs font-semibold text-[#C85A32] uppercase tracking-widest">
+            Palate & Place Passport
           </span>
 
-          <h2 className="font-serif text-3xl sm:text-4xl font-black text-stone-100 tracking-tight">
-            Unlock The World
+          <h2 className="font-serif text-3xl sm:text-4xl font-bold text-[#231B15] tracking-tight">
+            Unlock The World Pass
           </h2>
 
-          <p className="text-xs sm:text-sm text-stone-300 max-w-md mx-auto leading-relaxed">
-            Gain lifetime access to the complete global cookbook, unlimited offline downloads, and executive AI Chef guidance.
+          <p className="text-xs sm:text-sm text-[#5E5248] max-w-md mx-auto leading-relaxed">
+            Gain lifetime access to the complete global cookbook, unlimited offline recipes, and comprehensive AI Chef assistance.
           </p>
         </div>
 
@@ -186,20 +181,20 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
         <div className="p-6 sm:p-8 space-y-6">
           
           {/* Price Box */}
-          <div className="p-5 rounded-2xl bg-stone-900/90 border border-amber-500/30 flex items-center justify-between">
+          <div className="p-5 rounded-2xl bg-white border border-[#E8E1D7] flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-xs text-stone-400 font-medium">One-Time Lifetime Pass</p>
+              <p className="text-xs text-[#8E8277] font-medium">One-Time Lifetime Pass</p>
               <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="font-serif text-3xl sm:text-4xl font-black text-amber-400">
+                <span className="font-serif text-3xl sm:text-4xl font-bold text-[#231B15]">
                   ₦2,500
                 </span>
-                <span className="text-xs text-stone-400 font-mono">
+                <span className="text-xs text-[#8E8277] font-mono">
                   (approx. $3.00 USD)
                 </span>
               </div>
             </div>
 
-            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40">
+            <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-[#F2F5EC] text-[#5C6B38] border border-[#D5DEBF]">
               Zero Recurring Fees
             </span>
           </div>
@@ -208,56 +203,56 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
           <div className="space-y-3">
             {PERKS.map((perk, i) => (
               <div key={i} className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-5 h-5 rounded-full bg-[#F2F5EC] text-[#5C6B38] border border-[#D5DEBF] flex items-center justify-center shrink-0 mt-0.5">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </div>
                 <div>
-                  <p className="text-xs sm:text-sm font-bold text-stone-200">{perk.title}</p>
-                  <p className="text-[11px] text-stone-400 mt-0.5">{perk.desc}</p>
+                  <p className="text-xs sm:text-sm font-bold text-[#231B15]">{perk.title}</p>
+                  <p className="text-[11px] text-[#5E5248] mt-0.5">{perk.desc}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-rose-950/70 border border-rose-800 text-xs text-rose-300">
+            <div className="p-3.5 rounded-xl bg-[#FDF2ED] border border-[#F4CEBE] text-xs text-[#C85A32]">
               {errorMessage}
             </div>
           )}
 
           {testRequestSuccess && (
-            <div className="p-3.5 rounded-xl bg-emerald-950/70 border border-emerald-800 text-xs text-emerald-300">
+            <div className="p-3.5 rounded-xl bg-[#F2F5EC] border border-[#D5DEBF] text-xs text-[#5C6B38]">
               {testRequestSuccess}
             </div>
           )}
 
-          {/* Action: Paystack Checkout */}
+          {/* Action: Checkout */}
           {!isPremium ? (
             <div className="space-y-3 pt-2">
               <button
                 onClick={handlePaystackPayment}
                 disabled={loadingPaystack}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm sm:text-base shadow-xl shadow-amber-500/25 flex items-center justify-center gap-2 transition-all transform active:scale-98"
+                className="w-full py-4 rounded-2xl bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] font-semibold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition-all transform active:scale-98"
               >
-                <CreditCard className="w-5 h-5" />
-                <span>{loadingPaystack ? 'Connecting to Paystack...' : 'Pay ₦2,500 via Paystack'}</span>
-                <ArrowRight className="w-4 h-4" />
+                <CreditCard className="w-5 h-5 text-[#E8DAB7]" />
+                <span>{loadingPaystack ? 'Connecting to secure checkout...' : 'Unlock World Pass — ₦2,500'}</span>
+                <ArrowRight className="w-4 h-4 text-[#E8DAB7]" />
               </button>
 
-              {/* Dedicated "Return to Cookbook" button */}
+              {/* Return to Cookbook button */}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-3 rounded-2xl bg-stone-900 hover:bg-stone-850 text-stone-400 hover:text-stone-200 border border-stone-800 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                className="w-full py-3 rounded-2xl bg-white hover:bg-[#F4F0E8] text-[#5E5248] hover:text-[#231B15] border border-[#E8E1D7] text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Return to Global Cookbook (Keep Browsing)</span>
               </button>
 
-              {/* Reviewer & Testing Partner Access */}
-              <div className="pt-4 border-t border-stone-800/80">
-                <p className="text-xs text-stone-400 text-center mb-3">
-                  Are you a testing partner or culinary reviewer?
+              {/* Reviewer Invitation */}
+              <div className="pt-4 border-t border-[#E8E1D7]">
+                <p className="text-xs text-[#8E8277] text-center mb-3">
+                  Are you a culinary reviewer or guest partner?
                 </p>
 
                 <form onSubmit={handleRequestTest} className="flex gap-2">
@@ -266,45 +261,45 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
                     value={testerName}
                     onChange={(e) => setTesterName(e.target.value)}
                     placeholder="Your Name (e.g. Alex - Reviewer)"
-                    className="flex-1 py-2.5 px-3.5 rounded-xl bg-stone-900 border border-stone-800 text-xs text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500"
+                    className="flex-1 py-2.5 px-3.5 rounded-xl bg-white border border-[#E8E1D7] text-xs text-[#231B15] placeholder-[#8E8277] focus:outline-none focus:border-[#231B15]"
                   />
                   <button
                     type="submit"
                     disabled={isSubmittingRequest}
-                    className="px-4 py-2.5 rounded-xl bg-stone-850 hover:bg-stone-800 text-stone-200 border border-stone-700 text-xs font-semibold whitespace-nowrap"
+                    className="px-4 py-2.5 rounded-xl bg-[#F4F0E8] hover:bg-[#EAE4D9] text-[#231B15] border border-[#E8E1D7] text-xs font-semibold whitespace-nowrap shadow-sm"
                   >
                     Request Review Access
                   </button>
                 </form>
               </div>
 
-              {/* Creator & Admin quick access */}
+              {/* Curator Access */}
               {user?.email?.toLowerCase() === 'blessing.waydiva@gmail.com' && (
                 <div className="pt-2 text-center">
                   <button
                     onClick={handleDevQuickUnlock}
-                    className="text-xs text-amber-400/80 underline hover:text-amber-300 font-sans"
+                    className="text-xs text-[#C85A32] underline hover:text-[#A83E20] font-sans"
                   >
-                    Creator Quick Access (Unlock All Features)
+                    Direct Curator Activation (Unlock All Features)
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            <div className="p-4 rounded-2xl bg-emerald-950/60 border border-emerald-800/80 text-center space-y-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-500 text-stone-950 flex items-center justify-center mx-auto font-bold">
+            <div className="p-4 rounded-2xl bg-[#F2F5EC] border border-[#D5DEBF] text-center space-y-3">
+              <div className="w-8 h-8 rounded-full bg-[#5C6B38] text-white flex items-center justify-center mx-auto font-bold">
                 ✓
               </div>
-              <p className="text-sm font-bold text-emerald-300">
+              <p className="text-sm font-bold text-[#5C6B38]">
                 Your Lifetime World Pass is Active!
               </p>
-              <p className="text-xs text-stone-400">
-                You have full access to all 300+ recipes, offline downloads, and monthly AI Chef guidance.
+              <p className="text-xs text-[#5E5248]">
+                You have unrestricted access to all 300+ recipes, offline collections, and monthly AI Chef guidance.
               </p>
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 rounded-xl bg-amber-500 text-stone-950 font-bold text-xs shadow-lg shadow-amber-500/20"
+                className="w-full py-2.5 rounded-xl bg-[#231B15] text-[#FBF9F5] font-semibold text-xs shadow-sm"
               >
                 Back to Cookbook
               </button>

@@ -110,7 +110,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   }, [initialRecipe, fetchFullRecipe]);
 
   // Servings Scaler state
-  const [servings, setServings] = useState(initialRecipe.servings);
+  const [servings, setServings] = useState(initialRecipe.servings || 4);
   const scalingFactor = servings / (recipe.servings || 4);
 
   // Unit toggle: 'metric' | 'imperial'
@@ -120,7 +120,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
-  // Distraction-free Cooking Mode
+  // Distraction-free Cooking Mode (Strictly DARK, high-contrast theme)
   const [isCookingMode, setIsCookingMode] = useState(false);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [showIngredientsInCooking, setShowIngredientsInCooking] = useState(false);
@@ -248,11 +248,11 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const handleCompleteDish = () => {
     confetti({
       particleCount: 120,
-      spread: 80,
+      spread: 70,
       origin: { y: 0.6 }
     });
 
-    const cookedData = {
+    const completionData = {
       recipeId: recipe.recipeId,
       recipeTitle: recipe.title,
       country: recipe.country,
@@ -265,13 +265,21 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     };
 
     if (onCookedRecipe) {
-      onCookedRecipe(cookedData, mealPhotoFile || undefined);
+      onCookedRecipe(completionData, mealPhotoFile || undefined);
     } else {
-      recordCookedRecipe(cookedData, mealPhotoFile || undefined);
+      recordCookedRecipe(completionData, mealPhotoFile || undefined);
     }
 
     setHasRecordedCompletion(true);
     setShowCompletionModal(false);
+  };
+
+  const handleToggleFav = () => {
+    if (onToggleFavorite) {
+      onToggleFavorite(recipe.recipeId);
+    } else {
+      toggleFavorite(recipe.recipeId);
+    }
   };
 
   const handleShoppingListClick = () => {
@@ -284,226 +292,121 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     setTimeout(() => setAddedToListToast(false), 2500);
   };
 
-  const handleToggleFav = () => {
-    if (onToggleFavorite) {
-      onToggleFavorite(recipe.recipeId);
-    } else {
-      toggleFavorite(recipe.recipeId);
-    }
-  };
-
-  // Keyboard navigation for Cooking Mode
-  useEffect(() => {
-    if (!isCookingMode) return;
-    const handleKeyNav = (e: KeyboardEvent) => {
-      const totalSteps = recipe.preparationSteps?.length || 0;
-      if (totalSteps === 0) return;
-
-      if (e.key === 'ArrowRight' || e.key === ' ') {
-        e.preventDefault();
-        const currentStep = recipe.preparationSteps[activeStepIndex];
-        const stepNum = currentStep?.stepNumber ?? (activeStepIndex + 1);
-        toggleCompleteStep(stepNum);
-        if (activeStepIndex < totalSteps - 1) {
-          setActiveStepIndex(prev => prev + 1);
-        } else {
-          setIsCookingMode(false);
-          setShowCompletionModal(true);
-        }
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        setActiveStepIndex(prev => Math.max(0, prev - 1));
-      }
-    };
-    window.addEventListener('keydown', handleKeyNav);
-    return () => window.removeEventListener('keydown', handleKeyNav);
-  }, [isCookingMode, activeStepIndex, recipe.preparationSteps]);
-
-  // FULLSCREEN DISTRACTION-FREE COOKING MODE (Exclusively rendered to eliminate background bleeding)
+  // -------------------------------------------------------------
+  // DISTRACTION-FREE COOKING MODE (Strictly DARK, high-contrast theme)
+  // -------------------------------------------------------------
   if (isCookingMode) {
-    const steps = recipe.preparationSteps || [];
-    const totalSteps = steps.length;
-    const currentStep = steps[activeStepIndex];
-    const safeStepNumber = currentStep?.stepNumber ?? (activeStepIndex + 1);
-
-    // Auto-detect timer from instruction if timerMinutes not set
-    const autoTimerMinutes = currentStep?.timerMinutes || (() => {
-      if (!currentStep?.instruction) return undefined;
-      const match = currentStep.instruction.match(/(\d+)\s*(?:minutes|minute|mins|min)\b/i);
-      return match ? parseInt(match[1], 10) : undefined;
-    })();
+    const totalSteps = recipe.preparationSteps.length;
+    const safeStepNumber = activeStepIndex + 1;
+    const currentStep = recipe.preparationSteps[activeStepIndex] || recipe.preparationSteps[0];
+    const isCurrentStepDone = completedSteps.has(safeStepNumber);
 
     return (
-      <div className="fixed inset-0 z-50 bg-stone-950 text-stone-100 flex flex-col p-4 sm:p-8 animate-in fade-in duration-150 overflow-hidden select-none">
-        {/* Top bar with Step info, Ingredients toggle, TTS and Close */}
-        <div className="flex items-center justify-between pb-4 border-b border-stone-800 shrink-0 gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 truncate min-w-0">
-            <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500 text-stone-950 font-bold uppercase tracking-wider shrink-0">
-              Cooking Mode
-            </span>
-            <h3 className="font-serif text-sm sm:text-lg font-bold text-stone-100 truncate">
-              {recipe.title}
-            </h3>
+      <div className="fixed inset-0 z-50 bg-[#0F0D0B] text-[#FBF9F5] flex flex-col justify-between p-4 sm:p-8 animate-in fade-in duration-200">
+        
+        {/* Top Control Bar */}
+        <div className="flex items-center justify-between border-b border-stone-800 pb-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsCookingMode(false)}
+              className="p-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-800 transition-colors"
+              title="Exit cooking mode"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div>
+              <p className="text-[10px] font-mono text-[#C85A32] uppercase tracking-wider">
+                Cooking Mode · {recipe.country}
+              </p>
+              <h2 className="font-serif text-lg sm:text-xl font-bold text-white truncate max-w-[200px] sm:max-w-md">
+                {recipe.title}
+              </h2>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Quick Ingredients Peek */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setShowIngredientsInCooking(!showIngredientsInCooking)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
-                showIngredientsInCooking 
-                  ? 'bg-amber-500 text-stone-950 border-amber-500 font-bold' 
-                  : 'bg-stone-900 hover:bg-stone-800 text-stone-300 border-stone-800'
+              className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+                showIngredientsInCooking
+                  ? 'bg-[#C85A32] text-white border-[#C85A32]'
+                  : 'bg-stone-900 text-stone-300 border-stone-800 hover:bg-stone-800'
               }`}
-              title="Peek at recipe ingredients"
             >
-              <List className="w-3.5 h-3.5" />
+              <List className="w-4 h-4" />
               <span className="hidden sm:inline">Ingredients</span>
             </button>
 
-            {/* Read Step Aloud (Speech Synthesis) */}
-            {currentStep?.instruction && (
-              <button
-                onClick={() => toggleSpeakStep(currentStep.instruction)}
-                className={`p-2 rounded-xl border transition-all ${
-                  isSpeakingStep
-                    ? 'bg-amber-500 text-stone-950 border-amber-500 animate-pulse'
-                    : 'bg-stone-900 hover:bg-stone-800 text-stone-300 border-stone-800'
-                }`}
-                title={isSpeakingStep ? 'Stop reading' : 'Read step aloud hands-free'}
-              >
-                {isSpeakingStep ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </button>
-            )}
-
             <button
-              onClick={() => {
-                setIsCookingMode(false);
-                setShowIngredientsInCooking(false);
-              }}
-              aria-label="Exit cooking mode"
-              className="p-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 ml-1"
+              onClick={() => onOpenChefWithRecipe(recipe, `I am cooking ${recipe.title} (Step ${safeStepNumber}). Can you help me?`)}
+              className="px-3.5 py-2 rounded-xl bg-[#C85A32]/20 hover:bg-[#C85A32]/30 text-[#E8DAB7] border border-[#C85A32]/50 text-xs font-semibold flex items-center gap-1.5"
             >
-              <X className="w-5 h-5" />
+              <Sparkles className="w-4 h-4 text-[#C85A32]" />
+              <span className="hidden sm:inline">Ask AI Chef</span>
             </button>
           </div>
         </div>
 
-        {/* Step Progress Line */}
-        {totalSteps > 0 && (
-          <div className="w-full bg-stone-900 h-1 shrink-0 mt-3 rounded-full overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-300"
-              style={{ width: `${((activeStepIndex + 1) / totalSteps) * 100}%` }}
-            />
-          </div>
-        )}
-
-        {/* Main Content Area (With optional split when ingredients drawer is open) */}
-        <div className="flex-1 flex flex-col md:flex-row gap-6 max-w-4xl mx-auto w-full py-4 overflow-hidden">
-          
-          {/* Main Step Display */}
-          <div className="flex-1 flex flex-col justify-center space-y-5 overflow-y-auto pr-1">
-            {totalSteps === 0 ? (
-              <div className="p-8 text-center space-y-4 max-w-md mx-auto">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
-                  {recipe.isPremium && !isPremiumUser ? <Lock className="w-7 h-7" /> : <ChefHat className="w-7 h-7" />}
-                </div>
-                <h4 className="font-serif text-xl font-bold text-stone-200">
-                  {recipe.isPremium && !isPremiumUser ? 'Premium Recipe' : 'Steps Loading...'}
-                </h4>
-                <p className="text-xs sm:text-sm text-stone-400 leading-relaxed">
-                  {recipe.isPremium && !isPremiumUser
-                    ? 'Unlock the complete World Kitchen collection with 300+ recipes and instant step-by-step cooking mode.'
-                    : 'Fetching complete culinary preparation instructions...'}
-                </p>
-                {recipe.isPremium && !isPremiumUser && onOpenUnlockModal && (
-                  <button
-                    onClick={() => {
-                      setIsCookingMode(false);
-                      onOpenUnlockModal();
-                    }}
-                    className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs shadow-xl"
-                  >
-                    Unlock World Kitchen (₦2,500)
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between text-amber-400 font-mono text-xs sm:text-sm">
-                  <span>STEP {activeStepIndex + 1} OF {totalSteps}</span>
-                  {autoTimerMinutes && (
-                    <button
-                      onClick={() => handleStartStepTimer(autoTimerMinutes, `Step ${activeStepIndex + 1}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/50 hover:bg-amber-500/30 text-amber-300 font-bold text-xs transition-colors"
-                    >
-                      <Clock className="w-4 h-4" />
-                      <span>Start {autoTimerMinutes}m Timer</span>
-                    </button>
-                  )}
-                </div>
-
-                <p className="font-serif text-xl sm:text-2xl md:text-3xl text-stone-100 leading-relaxed font-medium">
-                  {currentStep?.instruction || 'Follow recipe instructions.'}
-                </p>
-
-                {currentStep?.tip && (
-                  <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs sm:text-sm text-amber-300 flex items-start gap-3">
-                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <span>{currentStep.tip}</span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Quick Ingredients Sidebar (Drawer) */}
-          {showIngredientsInCooking && (
-            <div className="w-full md:w-80 bg-stone-900/90 border border-stone-800 rounded-2xl p-4 flex flex-col max-h-60 md:max-h-full overflow-hidden animate-in slide-in-from-right duration-200">
-              <div className="flex items-center justify-between pb-2 border-b border-stone-800 shrink-0">
-                <span className="text-xs font-bold text-stone-200 uppercase tracking-wider flex items-center gap-1.5">
-                  <List className="w-3.5 h-3.5 text-amber-400" />
-                  Ingredients ({servings} servings)
-                </span>
-                <button
-                  onClick={() => setShowIngredientsInCooking(false)}
-                  className="text-stone-400 hover:text-stone-200 p-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="overflow-y-auto flex-1 space-y-1.5 pt-2 text-xs pr-1">
-                {recipe.ingredients.map((ing, idx) => (
-                  <div key={idx} className="flex items-baseline justify-between p-2 rounded-lg bg-stone-950/60 border border-stone-800/60">
-                    <span className="text-stone-300">{ing.name}</span>
-                    <span className="font-bold text-amber-400 font-mono ml-2 shrink-0">
-                      {formatScaledAmount(ing.amount, ing.unit)}
-                    </span>
+        {/* Center Step Workspace */}
+        <div className="my-auto max-w-4xl mx-auto w-full py-6 space-y-6">
+          {showIngredientsInCooking ? (
+            <div className="bg-stone-900/90 rounded-2xl border border-stone-800 p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              <h3 className="font-serif text-lg font-bold text-white">Recipe Ingredients</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-stone-300">
+                {recipe.ingredients.map((ing, i) => (
+                  <div key={i} className="p-2.5 rounded-lg bg-stone-950 border border-stone-800 flex justify-between">
+                    <span>{ing.name}</span>
+                    <span className="font-mono text-[#E8DAB7]">{formatScaledAmount(ing.amount, ing.unit)}</span>
                   </div>
                 ))}
               </div>
             </div>
+          ) : (
+            <div className="space-y-6 text-center">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-stone-900 border border-stone-800 text-xs font-mono text-[#E8DAB7]">
+                <span>Step {safeStepNumber} of {totalSteps}</span>
+                <span>•</span>
+                <span>{isCurrentStepDone ? 'Completed' : 'In Progress'}</span>
+              </div>
+
+              <p className="font-serif text-2xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight max-w-3xl mx-auto">
+                {currentStep?.instruction}
+              </p>
+
+              {currentStep?.tip && (
+                <div className="p-4 rounded-2xl bg-stone-900/80 border border-stone-800 max-w-xl mx-auto text-xs sm:text-sm text-stone-300 italic flex items-center justify-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#C85A32] shrink-0" />
+                  <span>{currentStep.tip}</span>
+                </div>
+              )}
+
+              {currentStep?.timerMinutes && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => handleStartStepTimer(currentStep.timerMinutes!, `Step ${safeStepNumber}`)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#C85A32] hover:bg-[#B34E2A] text-white font-bold text-sm shadow-xl transition-all"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>Start {currentStep.timerMinutes}-Minute Timer</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Step Controls */}
-        <div className="flex items-center justify-between max-w-4xl mx-auto w-full pt-4 border-t border-stone-800 gap-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] shrink-0">
+        {/* Bottom Step Navigation Bar */}
+        <div className="border-t border-stone-800 pt-4 flex items-center justify-between gap-4">
           <button
             disabled={activeStepIndex === 0}
             onClick={() => setActiveStepIndex(Math.max(0, activeStepIndex - 1))}
-            className="flex-1 sm:flex-none px-5 py-3 rounded-2xl bg-stone-900 disabled:opacity-30 hover:bg-stone-800 text-stone-200 font-bold text-xs sm:text-sm min-h-[48px] flex items-center justify-center gap-1.5"
+            className="px-5 py-3 rounded-xl bg-stone-900 hover:bg-stone-800 disabled:opacity-30 text-stone-300 text-xs sm:text-sm font-semibold border border-stone-800 flex items-center gap-1.5"
           >
             <ChevronLeft className="w-4 h-4" />
             <span>Previous</span>
           </button>
 
-          <span className="hidden sm:inline text-xs text-stone-500 font-mono">
-            Use ← → keys to navigate
-          </span>
-
           <button
-            disabled={totalSteps === 0}
             onClick={() => {
               toggleCompleteStep(safeStepNumber);
               if (activeStepIndex < totalSteps - 1) {
@@ -513,9 +416,9 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 setShowCompletionModal(true);
               }
             }}
-            className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 font-bold text-xs sm:text-sm shadow-xl min-h-[48px] flex items-center justify-center gap-1.5"
+            className="px-6 py-3 rounded-xl bg-[#C85A32] hover:bg-[#B34E2A] text-white font-bold text-xs sm:text-sm shadow-lg flex items-center gap-1.5"
           >
-            <span>{activeStepIndex === totalSteps - 1 ? 'Finish & Stamp' : 'Next Step'}</span>
+            <span>{activeStepIndex === totalSteps - 1 ? 'Finish & Stamp Passport' : 'Next Step'}</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -523,212 +426,186 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     );
   }
 
+  // -------------------------------------------------------------
+  // STANDARD RECIPE VIEW (Warm Editorial Ivory & Espresso Styling)
+  // -------------------------------------------------------------
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 overflow-hidden bg-black/85 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 md:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 md:p-6 animate-in fade-in duration-200"
     >
-      
-      {/* Main Container */}
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-4xl bg-stone-950 sm:rounded-3xl border-0 sm:border sm:border-stone-800 shadow-2xl overflow-hidden h-full sm:h-auto sm:max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-4xl bg-[#FBF9F5] sm:rounded-2xl border-0 sm:border sm:border-[#E8E1D7] shadow-2xl overflow-hidden h-full sm:h-auto sm:max-h-[92vh] flex flex-col"
       >
         
-        {/* Top Floating Control Bar */}
+        {/* Top Control Bar */}
         <div className="absolute top-4 inset-x-4 sm:inset-x-6 z-20 flex items-center justify-between pointer-events-none">
           {/* Country Pill */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-950/80 backdrop-blur-md border border-stone-800 text-xs font-bold text-stone-200 pointer-events-auto">
-            <Compass className="w-3.5 h-3.5 text-amber-400" />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#231B15]/85 backdrop-blur-md text-xs font-semibold text-[#FBF9F5] pointer-events-auto border border-black/20">
+            <Compass className="w-3.5 h-3.5 text-[#E8DAB7]" />
             <span>{recipe.country}</span>
-            <span className="text-stone-400">•</span>
-            <span className="text-stone-400">{recipe.continent}</span>
+            <span className="text-[#8E8277]">·</span>
+            <span className="text-[#E8DAB7]">{recipe.continent}</span>
           </div>
 
           <div className="flex items-center gap-2 pointer-events-auto">
             {/* Cooking Mode Button */}
             <button
               onClick={() => setIsCookingMode(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold shadow-lg transition-all"
-              title="Enter distraction-free cooking mode"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] text-xs font-medium shadow-md transition-all"
+              title="Enter dark distraction-free cooking mode"
             >
-              <Maximize2 className="w-3.5 h-3.5" />
+              <Maximize2 className="w-3.5 h-3.5 text-[#E8DAB7]" />
               <span className="hidden sm:inline">Cooking Mode</span>
             </button>
 
             {/* Favorite Button */}
             <button
               onClick={handleToggleFav}
-              className={`p-2 rounded-full backdrop-blur-md transition-all ${
+              className={`p-2 rounded-lg backdrop-blur-md transition-all ${
                 isFav
-                  ? 'bg-rose-950 text-rose-400 border border-rose-700'
-                  : 'bg-stone-950/80 hover:bg-stone-900 text-stone-200 border border-stone-800'
+                  ? 'bg-white text-[#C85A32] border border-[#C85A32]'
+                  : 'bg-[#231B15]/85 hover:bg-[#231B15] text-[#FBF9F5] border border-black/20'
               }`}
               title="Save to favorites"
             >
-              <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-500 text-rose-500' : ''}`} />
+              <Heart className={`w-4 h-4 ${isFav ? 'fill-[#C85A32]' : ''}`} />
             </button>
 
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="p-2 rounded-full bg-stone-950/80 hover:bg-stone-800 text-stone-300 hover:text-white border border-stone-800 transition-colors"
+              className="p-2 rounded-lg bg-[#231B15]/85 hover:bg-[#231B15] text-[#FBF9F5] border border-black/20 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Scrollable Recipe Body - Single smooth scroll container */}
+        {/* Scrollable Recipe Body */}
         <div className="overflow-y-auto flex-1 overscroll-contain pb-28 sm:pb-8">
           
           {/* Hero Image Section */}
-          <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full bg-stone-900">
+          <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full bg-[#EAE4D9]">
             <img
               src={recipe.image}
               alt={recipe.title}
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#231B15]/80 via-black/30 to-transparent" />
 
             <div className="absolute bottom-4 sm:bottom-6 inset-x-4 sm:inset-x-8">
+              <span className="text-[11px] font-mono text-[#E8DAB7] tracking-wider uppercase">
+                Traditional Recipe #{recipe.recipeId}
+              </span>
               <h2 className="font-serif text-2xl sm:text-4xl font-bold text-white tracking-tight">
                 {recipe.title}
               </h2>
               {recipe.alternateName && (
-                <p className="text-sm sm:text-base text-amber-300 font-medium italic mt-1">
+                <p className="text-xs sm:text-sm text-[#E8DAB7] italic mt-0.5">
                   {recipe.alternateName}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Core Content Grid */}
+          {/* Core Content */}
           <div className="p-4 sm:p-8 space-y-8">
             
             {/* Quick Metadata Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 rounded-2xl bg-stone-900/80 border border-stone-800 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E1D7] flex items-center gap-3 shadow-sm">
+                <div className="p-2 rounded-lg bg-[#F7F4EE] text-[#C85A32]">
                   <Clock className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[11px] text-stone-400">Prep / Cook</p>
-                  <p className="text-sm font-bold text-stone-200">{recipe.prepTime}m / {recipe.cookTime}m</p>
+                  <p className="text-[10px] uppercase font-semibold text-[#8E8277]">Prep / Cook</p>
+                  <p className="text-xs sm:text-sm font-bold text-[#231B15]">{recipe.prepTime}m / {recipe.cookTime}m</p>
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-stone-900/80 border border-stone-800 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E1D7] flex items-center gap-3 shadow-sm">
+                <div className="p-2 rounded-lg bg-[#F7F4EE] text-[#C85A32]">
                   <Flame className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[11px] text-stone-400">Spice Level</p>
-                  <p className="text-sm font-bold text-stone-200">
+                  <p className="text-[10px] uppercase font-semibold text-[#8E8277]">Spice Level</p>
+                  <p className="text-xs sm:text-sm font-bold text-[#231B15]">
                     {recipe.spiceLevel === 0 ? 'Mild' : `${recipe.spiceLevel} / 5`}
                   </p>
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-stone-900/80 border border-stone-800 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E1D7] flex items-center gap-3 shadow-sm">
+                <div className="p-2 rounded-lg bg-[#F7F4EE] text-[#5C6B38]">
                   <ChefHat className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[11px] text-stone-400">Difficulty</p>
-                  <p className="text-sm font-bold text-stone-200">{recipe.difficulty}</p>
+                  <p className="text-[10px] uppercase font-semibold text-[#8E8277]">Difficulty</p>
+                  <p className="text-xs sm:text-sm font-bold text-[#231B15]">{recipe.difficulty}</p>
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-stone-900/80 border border-stone-800 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+              <div className="p-3.5 rounded-xl bg-white border border-[#E8E1D7] flex items-center gap-3 shadow-sm">
+                <div className="p-2 rounded-lg bg-[#F7F4EE] text-[#5C6B38]">
                   <Download className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[11px] text-stone-400">Offline Status</p>
-                  <p className="text-sm font-bold text-emerald-400">
-                    {recipe.isStarter || isDl ? 'Saved for Offline' : 'Online Recipe'}
+                  <p className="text-[10px] uppercase font-semibold text-[#8E8277]">Offline</p>
+                  <p className="text-xs sm:text-sm font-bold text-[#5C6B38]">
+                    {recipe.isStarter || isDl ? 'Available Offline' : 'Online View'}
                   </p>
                 </div>
               </div>
             </div>
 
             {/* Cultural Background & Story */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950/20 border border-stone-800 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-400 tracking-wide uppercase">
+            <div className="p-5 rounded-xl bg-[#F7F4EE] border border-[#E8E1D7] space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#C85A32] uppercase tracking-wider">
                 <Info className="w-4 h-4" />
                 <span>Cultural Heritage & Origins</span>
               </div>
-              <p className="text-sm text-stone-300 leading-relaxed">
+              <p className="font-editorial text-sm sm:text-base text-[#231B15] leading-relaxed">
                 {recipe.culturalBackground}
               </p>
-              <p className="text-xs text-stone-400 italic pt-1">
+              <p className="text-xs text-[#5E5248] italic pt-1 border-t border-[#E8E1D7]/60">
                 {recipe.description}
               </p>
             </div>
 
-            {/* Recipe Content: Check if locked preview or full recipe */}
-            {(!recipe.ingredients || recipe.ingredients.length === 0) ? (
-              <div className="p-8 text-center space-y-5 my-4 rounded-3xl bg-gradient-to-b from-amber-500/10 via-stone-900 to-stone-950 border border-amber-500/30">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
-                  <Sparkles className="w-7 h-7" />
-                </div>
-                <div>
-                  <span className="text-xs uppercase tracking-widest text-amber-400 font-bold">World Collection</span>
-                  <h3 className="font-serif text-2xl font-bold text-stone-100 mt-1">
-                    THIS RECIPE IS PART OF THE WORLD COLLECTION
-                  </h3>
-                </div>
-                <p className="text-stone-300 text-sm max-w-md mx-auto leading-relaxed">
-                  Unlock 300+ authentic recipes from 50+ countries across Africa, Asia, Europe, Americas, and Oceania.
-                </p>
-                <div className="pt-2">
-                  <span className="text-xl font-mono font-bold text-amber-400">₦2,500 once</span>
-                  <p className="text-xs text-stone-400 mt-1">Lifetime access • Full offline downloads • 100 AI Chef questions/mo</p>
-                </div>
-                {onOpenUnlockModal && (
-                  <button
-                    onClick={onOpenUnlockModal}
-                    className="mt-2 px-8 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm shadow-xl shadow-amber-500/25 active:scale-95 transition-all"
-                  >
-                    UNLOCK THE WORLD
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-            {/* Interactive Ingredients Section with Scaler & Unit Toggle */}
+            {/* Ingredients Section */}
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-stone-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E8E1D7]">
                 <div className="flex items-center gap-3">
-                  <h3 className="font-serif text-xl font-bold text-stone-100">
+                  <h3 className="font-serif text-xl font-bold text-[#231B15]">
                     Ingredients
                   </h3>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-stone-800 text-stone-300 font-mono">
+                  <span className="text-xs px-2.5 py-0.5 rounded bg-[#F4F0E8] text-[#5E5248] font-mono">
                     {recipe.ingredients.length} items
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {/* Servings Scaler */}
-                  <div className="flex items-center bg-stone-900 rounded-xl border border-stone-800 p-1">
-                    <span className="text-xs text-stone-400 px-2 flex items-center gap-1">
+                  <div className="flex items-center bg-white rounded-lg border border-[#E8E1D7] p-1">
+                    <span className="text-xs text-[#8E8277] px-2 flex items-center gap-1">
                       <Users className="w-3.5 h-3.5" />
                       Serves
                     </span>
                     <button
                       onClick={() => setServings(Math.max(1, servings - 1))}
-                      className="p-1 rounded-lg hover:bg-stone-800 text-stone-300"
+                      className="p-1 rounded hover:bg-[#F4F0E8] text-[#231B15]"
                       title="Decrease servings"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="w-7 text-center font-bold text-sm text-amber-400">
+                    <span className="w-7 text-center font-bold text-xs text-[#231B15]">
                       {servings}
                     </span>
                     <button
                       onClick={() => setServings(servings + 1)}
-                      className="p-1 rounded-lg hover:bg-stone-800 text-stone-300"
+                      className="p-1 rounded hover:bg-[#F4F0E8] text-[#231B15]"
                       title="Increase servings"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -736,19 +613,19 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                   </div>
 
                   {/* Unit Switcher */}
-                  <div className="flex bg-stone-900 rounded-xl border border-stone-800 p-1 text-xs">
+                  <div className="flex bg-white rounded-lg border border-[#E8E1D7] p-1 text-xs">
                     <button
                       onClick={() => setUnitSystem('metric')}
-                      className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                        unitSystem === 'metric' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-400'
+                      className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                        unitSystem === 'metric' ? 'bg-[#231B15] text-white font-semibold' : 'text-[#8E8277]'
                       }`}
                     >
                       Metric
                     </button>
                     <button
                       onClick={() => setUnitSystem('imperial')}
-                      className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                        unitSystem === 'imperial' ? 'bg-amber-500 text-stone-950 font-bold' : 'text-stone-400'
+                      className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                        unitSystem === 'imperial' ? 'bg-[#231B15] text-white font-semibold' : 'text-[#8E8277]'
                       }`}
                     >
                       Imperial
@@ -767,24 +644,24 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                       onClick={() => toggleCheckIngredient(idx)}
                       className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
                         isChecked
-                          ? 'bg-stone-900/40 border-stone-800/50 opacity-60 line-through'
-                          : 'bg-stone-900/80 border-stone-800 hover:border-amber-500/40'
+                          ? 'bg-[#F4F0E8]/60 border-[#E8E1D7] opacity-60 line-through'
+                          : 'bg-white border-[#E8E1D7] hover:border-[#231B15]/40 shadow-sm'
                       }`}
                     >
-                      <div className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center border transition-colors ${
-                        isChecked ? 'bg-amber-500 border-amber-500 text-stone-950' : 'border-stone-600'
+                      <div className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                        isChecked ? 'bg-[#5C6B38] border-[#5C6B38] text-white' : 'border-[#D8CEBE]'
                       }`}>
                         {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="font-semibold text-stone-100 text-sm">
+                        <span className="font-semibold text-[#231B15] text-xs sm:text-sm">
                           {formatScaledAmount(ing.amount, ing.unit)}
                         </span>
-                        <span className="text-stone-300 text-sm ml-1.5">
+                        <span className="text-[#231B15] text-xs sm:text-sm ml-1.5">
                           {ing.name}
                         </span>
                         {ing.notes && (
-                          <p className="text-[11px] text-stone-400 italic mt-0.5">
+                          <p className="text-[11px] text-[#8E8277] italic mt-0.5">
                             {ing.notes}
                           </p>
                         )}
@@ -798,15 +675,15 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               <div className="flex items-center justify-between pt-2">
                 <button
                   onClick={handleShoppingListClick}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-700 text-xs font-semibold transition-all active:scale-95"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white hover:bg-[#F4F0E8] text-[#231B15] border border-[#E8E1D7] text-xs font-semibold transition-all shadow-sm"
                 >
-                  <ShoppingBag className="w-4 h-4 text-amber-400" />
+                  <ShoppingBag className="w-4 h-4 text-[#C85A32]" />
                   <span>{addedToListToast ? '✓ Added to Shopping List!' : 'Add All to Shopping List'}</span>
                 </button>
 
                 <button
                   onClick={() => onOpenChefWithRecipe(recipe, `What substitutions can I make for ${recipe.title}?`)}
-                  className="text-xs text-amber-400 hover:underline flex items-center gap-1"
+                  className="text-xs text-[#C85A32] hover:underline flex items-center gap-1 font-medium"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Missing an ingredient? Ask Chef
@@ -816,49 +693,48 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
             {/* Preparation Steps Section */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-stone-800">
-                <h3 className="font-serif text-xl font-bold text-stone-100">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E8E1D7]">
+                <h3 className="font-serif text-xl font-bold text-[#231B15]">
                   Step-by-Step Preparation
                 </h3>
-                <span className="text-xs text-stone-400">
+                <span className="text-xs text-[#8E8277] font-mono">
                   {completedSteps.size} of {recipe.preparationSteps.length} completed
                 </span>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {recipe.preparationSteps.map((step) => {
                   const isDone = completedSteps.has(step.stepNumber);
                   return (
                     <div
                       key={step.stepNumber}
-                      className={`p-4 rounded-2xl border transition-all ${
+                      className={`p-4 rounded-xl border transition-all ${
                         isDone
-                          ? 'bg-stone-900/30 border-stone-800/40 opacity-70'
-                          : 'bg-stone-900/80 border-stone-800 hover:border-amber-500/30'
+                          ? 'bg-[#F4F0E8]/50 border-[#E8E1D7] opacity-70'
+                          : 'bg-white border-[#E8E1D7] hover:border-[#231B15]/40 shadow-sm'
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <button
                           onClick={() => toggleCompleteStep(step.stepNumber)}
-                          className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
+                          className={`mt-0.5 w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
                             isDone
-                              ? 'bg-amber-500 text-stone-950'
-                              : 'bg-stone-800 text-stone-400 hover:bg-stone-700'
+                              ? 'bg-[#5C6B38] text-white'
+                              : 'bg-[#F4F0E8] text-[#5E5248] hover:bg-[#EAE4D9]'
                           }`}
                         >
                           {isDone ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : step.stepNumber}
                         </button>
 
                         <div className="space-y-2 flex-1">
-                          <p className={`text-sm leading-relaxed ${isDone ? 'line-through text-stone-400' : 'text-stone-200'}`}>
+                          <p className={`text-xs sm:text-sm leading-relaxed ${isDone ? 'line-through text-[#8E8277]' : 'text-[#231B15]'}`}>
                             {step.instruction}
                           </p>
 
-                          {/* Embedded Step Timer button */}
                           {step.timerMinutes && (
                             <button
                               onClick={() => handleStartStepTimer(step.timerMinutes!, `Step ${step.stepNumber}`)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-400 text-xs font-semibold transition-all"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#C85A32] text-xs font-semibold transition-all"
                             >
                               <Clock className="w-3.5 h-3.5" />
                               <span>Start {step.timerMinutes}m Timer</span>
@@ -866,8 +742,8 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                           )}
 
                           {step.tip && (
-                            <div className="p-2.5 rounded-xl bg-stone-950/60 border border-stone-800 text-xs text-amber-300 flex items-start gap-2">
-                              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                            <div className="p-2.5 rounded-lg bg-[#FBF9F5] border border-[#E8E1D7] text-xs text-[#5E5248] flex items-start gap-2">
+                              <Sparkles className="w-3.5 h-3.5 text-[#C85A32] shrink-0 mt-0.5" />
                               <span>{step.tip}</span>
                             </div>
                           )}
@@ -879,116 +755,60 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Equipment & Chef Tips */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {recipe.equipment.length > 0 && (
-                <div className="p-4 rounded-2xl bg-stone-900/60 border border-stone-800 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-stone-300 uppercase">
-                    <Utensils className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Recommended Equipment</span>
-                  </div>
-                  <ul className="text-xs text-stone-400 space-y-1">
-                    {recipe.equipment.map((eq, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                        <span>{eq}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {recipe.cookingTips.length > 0 && (
-                <div className="p-4 rounded-2xl bg-stone-900/60 border border-stone-800 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-stone-300 uppercase">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Executive Chef Advice</span>
-                  </div>
-                  <ul className="text-xs text-stone-400 space-y-1">
-                    {recipe.cookingTips.map((tip, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                        <span>{tip}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* Substitutions */}
-            {recipe.substitutions.length > 0 && (
-              <div className="p-4 rounded-2xl bg-stone-900/60 border border-stone-800 space-y-2">
-                <p className="text-xs font-bold text-stone-300 uppercase">
-                  Known Substitutions & Swaps
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {recipe.substitutions.map((sub, i) => (
-                    <div key={i} className="p-2 rounded-xl bg-stone-950/80 border border-stone-800">
-                      <p className="font-semibold text-stone-200">Replace {sub.ingredient}</p>
-                      <p className="text-amber-400 mt-0.5">Use {sub.substitute}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Bottom Celebration / "I Cooked This" & Ask Chef Bar */}
-            <div className="pt-4 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+            {/* Bottom Actions Bar */}
+            <div className="pt-4 border-t border-[#E8E1D7] flex flex-col sm:flex-row items-center justify-between gap-3">
               <button
                 onClick={() => onOpenChefWithRecipe(recipe)}
-                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-700 text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white hover:bg-[#F4F0E8] text-[#231B15] border border-[#E8E1D7] text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-all"
               >
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Ask Chef AI About This Recipe</span>
+                <Sparkles className="w-4 h-4 text-[#C85A32]" />
+                <span>Ask AI Mentor About This Recipe</span>
               </button>
 
               <button
                 onClick={() => setShowCompletionModal(true)}
                 disabled={hasRecordedCompletion}
-                className={`w-full sm:w-auto px-6 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center justify-center gap-2 transition-all transform active:scale-95 ${
+                className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-all ${
                   hasRecordedCompletion
-                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-700 cursor-default'
-                    : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 shadow-amber-500/20'
+                    ? 'bg-[#F2F5EC] text-[#5C6B38] border border-[#D5DEBF] cursor-default'
+                    : 'bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5]'
                 }`}
               >
-                <Award className="w-4 h-4" />
+                <Award className="w-4 h-4 text-[#E8DAB7]" />
                 <span>{hasRecordedCompletion ? '✓ Stamped in Food Passport!' : 'I Cooked This (Stamp Passport)'}</span>
               </button>
             </div>
-            </>
-            )}
           </div>
         </div>
 
-        {/* "I COOKED THIS" COMPLETION & RATING MODAL */}
+        {/* "I COOKED THIS" COMPLETION MODAL */}
         {showCompletionModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-stone-900 rounded-3xl border border-stone-800 p-6 space-y-5 shadow-2xl animate-in zoom-in-95">
-              <div className="text-center space-y-2">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto">
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-white rounded-2xl border border-[#E8E1D7] p-6 space-y-5 shadow-2xl animate-in zoom-in-95">
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 rounded-xl bg-[#F7F4EE] border border-[#E8E1D7] text-[#C85A32] flex items-center justify-center mx-auto">
                   <Award className="w-6 h-6" />
                 </div>
-                <h3 className="font-serif text-2xl font-bold text-stone-100">
+                <h3 className="font-serif text-2xl font-bold text-[#231B15]">
                   Congratulations, Chef!
                 </h3>
-                <p className="text-xs text-stone-400">
+                <p className="text-xs text-[#5E5248]">
                   You just brought {recipe.country} into your kitchen. Stamp your Food Passport and save your personal review.
                 </p>
               </div>
 
               {/* Star Rating */}
               <div className="space-y-1 text-center">
-                <label className="text-xs font-semibold text-stone-300">How did it turn out?</label>
+                <label className="text-xs font-semibold text-[#231B15]">How did it turn out?</label>
                 <div className="flex items-center justify-center gap-2 pt-1">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       type="button"
                       onClick={() => setUserRating(star)}
-                      className="p-1 text-stone-600 hover:text-amber-400 transition-colors"
+                      className="p-1 text-[#D8CEBE] hover:text-[#B8860B] transition-colors"
                     >
-                      <Star className={`w-6 h-6 ${star <= userRating ? 'fill-amber-400 text-amber-400' : 'text-stone-600'}`} />
+                      <Star className={`w-6 h-6 ${star <= userRating ? 'fill-[#B8860B] text-[#B8860B]' : 'text-[#D8CEBE]'}`} />
                     </button>
                   ))}
                 </div>
@@ -996,21 +816,21 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
               {/* Cooking Notes */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-stone-300">Personal Notes (optional)</label>
+                <label className="text-xs font-semibold text-[#231B15]">Personal Tasting Notes (optional)</label>
                 <textarea
                   value={cookingNotes}
                   onChange={(e) => setCookingNotes(e.target.value)}
-                  placeholder="e.g. Added extra garlic, cooked for 5 minutes less, family loved it..."
+                  placeholder="e.g. Added extra cardamom, perfectly balanced texture..."
                   rows={2}
-                  className="w-full p-3 rounded-xl bg-stone-950 border border-stone-800 text-xs text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-500"
+                  className="w-full p-3 rounded-lg bg-[#FBF9F5] border border-[#E8E1D7] text-xs text-[#231B15] placeholder-[#8E8277] focus:outline-none focus:border-[#231B15]"
                 />
               </div>
 
-              {/* Meal Photo (Compressed & Stored securely) */}
+              {/* Meal Photo */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-stone-300 flex items-center justify-between">
+                <label className="text-xs font-semibold text-[#231B15] flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Camera className="w-3.5 h-3.5 text-amber-400" />
+                    <Camera className="w-3.5 h-3.5 text-[#C85A32]" />
                     <span>Dish Photo (optional)</span>
                   </span>
                   {mealPhotoPreview && (
@@ -1020,7 +840,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                         setMealPhotoPreview(null);
                         setMealPhotoFile(null);
                       }}
-                      className="text-[11px] text-red-400 hover:text-red-300 flex items-center gap-1"
+                      className="text-[11px] text-[#C85A32] hover:underline flex items-center gap-1"
                     >
                       <Trash2 className="w-3 h-3" />
                       <span>Remove</span>
@@ -1029,19 +849,16 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 </label>
 
                 {mealPhotoPreview ? (
-                  <div className="relative rounded-2xl overflow-hidden border border-amber-500/40 h-28 bg-stone-950">
+                  <div className="relative rounded-xl overflow-hidden border border-[#E8E1D7] h-28 bg-[#F4F0E8]">
                     <img
                       src={mealPhotoPreview}
                       alt="Cooked Dish"
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-[10px] font-medium text-amber-300">
-                      Photo attached
-                    </div>
                   </div>
                 ) : (
-                  <label className="cursor-pointer flex items-center justify-center gap-2 p-3.5 rounded-2xl border border-dashed border-stone-700 hover:border-amber-500/60 bg-stone-950/60 hover:bg-stone-950 transition-all text-xs text-stone-400 hover:text-stone-200">
-                    <Camera className="w-4 h-4 text-amber-400" />
+                  <label className="cursor-pointer flex items-center justify-center gap-2 p-3.5 rounded-xl border border-dashed border-[#D8CEBE] hover:border-[#231B15] bg-[#FBF9F5] transition-all text-xs text-[#8E8277] hover:text-[#231B15]">
+                    <Camera className="w-4 h-4 text-[#C85A32]" />
                     <span>Snap or upload your finished dish</span>
                     <input
                       type="file"
@@ -1057,13 +874,13 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowCompletionModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold"
+                  className="flex-1 py-2.5 rounded-lg bg-[#F4F0E8] hover:bg-[#EAE4D9] text-[#5E5248] text-xs font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCompleteDish}
-                  className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold shadow-lg"
+                  className="flex-1 py-2.5 rounded-lg bg-[#231B15] hover:bg-[#3D322A] text-white text-xs font-semibold shadow-sm"
                 >
                   Stamp Passport
                 </button>
@@ -1071,30 +888,6 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
             </div>
           </div>
         )}
-        {/* Sticky Mobile Action Bar (Natural Thumb Zone) */}
-        <div className="sm:hidden sticky bottom-0 inset-x-0 bg-stone-950/95 backdrop-blur-xl border-t border-stone-800/90 p-3 flex items-center gap-2 z-20 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-          <button
-            onClick={() => setIsCookingMode(true)}
-            className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 min-h-[44px]"
-          >
-            <Maximize2 className="w-4 h-4" />
-            <span>Cooking Mode</span>
-          </button>
-          <button
-            onClick={handleShoppingListClick}
-            className="min-w-[44px] min-h-[44px] p-2.5 rounded-xl bg-stone-900 border border-stone-800 text-stone-300 hover:text-white flex items-center justify-center active:scale-95"
-            title="Add ingredients to Shopping List"
-          >
-            <ShoppingBag className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => onOpenChefWithRecipe(recipe)}
-            className="min-w-[44px] min-h-[44px] p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center active:scale-95"
-            title="Ask AI Chef about this recipe"
-          >
-            <Sparkles className="w-4 h-4" />
-          </button>
-        </div>
       </div>
     </div>
   );

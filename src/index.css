@@ -7,40 +7,48 @@
     -webkit-tap-highlight-color: transparent;
     overflow-x: hidden;
     width: 100%;
+    background-color: #FBF9F5;
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow-x: hidden;
     width: 100%;
     min-height: 100dvh;
+    background-color: #FBF9F5;
+    color: #231B15;
     -webkit-overflow-scrolling: touch;
     touch-action: manipulation;
   }
 
   h1, h2, h3, .font-serif {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+    font-feature-settings: "liga", "clig", "dlig", "kern";
   }
 
   .font-display {
-    font-family: 'Cinzel', serif;
+    font-family: 'Fraunces', Georgia, serif;
+  }
+
+  .font-editorial {
+    font-family: 'Cormorant Garamond', Georgia, serif;
   }
 }
 
-/* Custom scrollbars */
+/* Custom warm editorial scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0c0a09;
+  background: #F4F0E8;
 }
 ::-webkit-scrollbar-thumb {
-  background: #292524;
+  background: #D8CEBE;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #44403c;
+  background: #BFAEA0;
 }
 
 /* Utility to hide scrollbars while allowing touch scrolling */

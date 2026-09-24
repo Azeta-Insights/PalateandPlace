@@ -13,7 +13,7 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Helper function to check if user is the admin (configured admin email)
+    // Helper function to check if user is the curator/admin
     function isAdmin() {
       return isAuthenticated() && (
         request.auth.token.email == 'blessing.waydiva@gmail.com' ||
@@ -21,11 +21,29 @@ service cloud.firestore {
       );
     }
 
-    // User profile document
+    // Entitlements: Server-authoritative, ordinary users cannot modify
+    match /entitlements/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Payment Records: Read by purchaser or admin, write only by admin/server
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // AI Quota & Fair-Use Tracking
+    match /aiUsage/{usageId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // User profile document and personal cooking journal
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);
-      // Regular users cannot modify their entitlement tier; only admin or server can
+      // Users cannot directly grant themselves premium in profile; entitlement is server-controlled
       allow update: if isAdmin() || (
         isOwner(userId) && (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['entitlement']) ||
@@ -34,7 +52,7 @@ service cloud.firestore {
       );
       allow delete: if isOwner(userId) || isAdmin();
 
-      // Subcollections under user
+      // Scoped Subcollections
       match /favorites/{recipeId} {
         allow read, write: if isOwner(userId);
       }
@@ -56,19 +74,18 @@ service cloud.firestore {
       }
     }
 
-    // Premium tester requests
+    // Premium Reviewer Requests
     match /premiumRequests/{requestId} {
       allow create: if isAuthenticated() && 
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.status == 'pending';
+        request.resource.data.userId == request.auth.uid;
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
     }
 
-    // Recipe insights (aggregated, anonymized)
+    // Recipe question insights (aggregated & curated)
     match /recipeInsights/{recipeId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // Rate limits (tracking for serverless AI endpoints)
@@ -76,7 +93,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Admin logs
+    // Admin Logs
     match /adminLogs/{logId} {
       allow read, write: if isAdmin();
     }

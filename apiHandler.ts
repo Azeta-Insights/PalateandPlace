@@ -1,11 +1,7 @@
 import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { Request, Response } from 'express';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, runTransaction } from 'firebase/firestore';
-import { adminAuth } from './server/firebaseAdmin';
-import firebaseAppletConfig from './firebase-applet-config.json';
-import { firebaseConfig, databaseId } from './src/firebase/config';
+import { adminAuth, adminDb } from './server/firebaseAdmin';
 import {
   getFullPremiumRecipeById,
   getFullPremiumRecipesBatch,
@@ -13,13 +9,10 @@ import {
 } from './server/premiumCatalog';
 import { ALL_STARTER_RECIPES } from './src/data/recipes';
 
-// Initialize Firebase client for Firestore rate limiting
-const fbApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const firestoreDb = (databaseId && databaseId !== '(default)')
-  ? getFirestore(fbApp, databaseId)
-  : getFirestore(fbApp);
+// Primary Curator / Administrator identifier
+export const PRIMARY_ADMIN_EMAIL = 'blessing.waydiva@gmail.com';
 
-// Initialize Gemini Client safely using server-side env var
+// Initialize Gemini Client safely using server-side environment variable
 const geminiApiKey = process.env.GEMINI_API_KEY || '';
 let aiClient: GoogleGenAI | null = null;
 if (geminiApiKey) {
@@ -30,71 +23,57 @@ if (geminiApiKey) {
   }
 }
 
-// Recipe question insights store for Admin Console
-export interface StoredInsight {
-  recipeId: string;
-  recipeTitle: string;
-  category: string;
-  question: string;
-  timestamp: string;
-  handledByGemini: boolean;
-}
-export const recipeQuestionInsights: StoredInsight[] = [];
+// -------------------------------------------------------------
+// SERVER-AUTHORITATIVE TYPES & INTERFACES
+// -------------------------------------------------------------
 
-// Server-authoritative entitlements store (persisted across sessions in memory and Firestore)
 export interface ServerEntitlement {
-  tier: 'free' | 'premium' | 'test_premium';
+  tier: 'FREE' | 'PREMIUM' | 'TEST_PREMIUM';
   source: 'default' | 'purchase' | 'test' | 'dev' | 'revoked';
-  unlockedAt?: string;
-  paystackReference?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  approvedAt?: string;
   approvedBy?: string;
+  paymentReference?: string;
 }
 
-const AUTHORITATIVE_ENTITLEMENTS = new Map<string, ServerEntitlement>();
-
-// Verified payments registry
-export interface PaymentRecord {
-  reference: string;
+export interface StoredPaymentRecord {
   userId: string;
-  email: string;
+  paystackReference: string;
   amount: number;
   currency: string;
   status: 'success' | 'failed';
+  createdAt: string;
   verifiedAt: string;
+  email?: string;
 }
-const PAYMENTS_REGISTRY = new Map<string, PaymentRecord>();
 
-// Premium tester requests registry
-export interface TesterRequest {
-  id: string;
+export interface StoredTesterRequest {
+  requestId: string;
   userId: string;
   name: string;
   email: string;
   requestedAt: string;
-  status: 'pending' | 'approved' | 'rejected' | 'revoked';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
   reviewedAt?: string;
   reviewedBy?: string;
 }
-const TESTER_REQUESTS = new Map<string, TesterRequest>();
 
-// Admin notification queue
-export interface AdminNotification {
-  id: string;
-  recipient: string;
-  subject: string;
-  message: string;
-  timestamp: string;
-}
-const ADMIN_NOTIFICATIONS: AdminNotification[] = [];
+// -------------------------------------------------------------
+// 1. AUTHENTICATION & IDENTITY VERIFICATION
+// -------------------------------------------------------------
 
-// Admin Allowlist Email (fallback identifier for notifications)
-export const PRIMARY_ADMIN_EMAIL = 'blessing.waydiva@gmail.com';
-
-// Verify Firebase Custom Auth Claims: ensures decoded token has admin: true (or valid admin email)
-export async function verifyAdminToken(req: Request): Promise<{ isAdmin: boolean; email?: string; uid?: string }> {
+/**
+ * Extracts and verifies the Firebase Authentication ID token from Authorization header or body/query.
+ * Derives uid, email, and provider strictly from the cryptographically verified token.
+ */
+export async function verifyUserToken(
+  req: Request
+): Promise<{ uid: string; email?: string; provider?: string } | null> {
   try {
-    const authHeader = (req.headers.authorization || req.headers['x-admin-token']) as string | undefined;
+    const authHeader = (req.headers.authorization || req.headers['x-auth-token']) as string | undefined;
     let token = '';
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7);
     } else if (authHeader) {
@@ -105,110 +84,272 @@ export async function verifyAdminToken(req: Request): Promise<{ isAdmin: boolean
       token = req.query.idToken as string;
     }
 
-    if (token) {
-      try {
-        const decoded = await adminAuth.verifyIdToken(token);
-        if (decoded) {
-          const hasAdminClaim = decoded.admin === true;
-          const isPrimaryEmail = decoded.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase();
-          if (hasAdminClaim || isPrimaryEmail) {
-            return { isAdmin: true, email: decoded.email, uid: decoded.uid };
-          }
-          return { isAdmin: false, email: decoded.email, uid: decoded.uid };
-        }
-      } catch (tokenErr) {
-        console.warn('ID Token decode error:', tokenErr);
-      }
+    if (!token) return null;
+
+    const decoded = await adminAuth.verifyIdToken(token);
+    if (!decoded || !decoded.uid) return null;
+
+    return {
+      uid: decoded.uid,
+      email: decoded.email,
+      provider: decoded.firebase?.sign_in_provider
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Verifies administrator authority server-side.
+ * Never trusts client headers or request body flags.
+ */
+export async function verifyAdminToken(
+  req: Request
+): Promise<{ isAdmin: boolean; email?: string; uid?: string }> {
+  try {
+    const verifiedUser = await verifyUserToken(req);
+    if (!verifiedUser) {
+      return { isAdmin: false };
     }
 
-    // Fallback check for admin email in request body or headers
-    const providedEmail =
-      req.body?.adminEmail ||
-      req.body?.userEmail ||
-      (req.headers['x-admin-email'] as string) ||
-      (req.query?.adminEmail as string);
+    const email = verifiedUser.email?.toLowerCase() || '';
+    const isPrimaryAdmin = email === PRIMARY_ADMIN_EMAIL.toLowerCase();
 
-    if (providedEmail && providedEmail.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase()) {
-      return { isAdmin: true, email: providedEmail };
+    // Check custom claim admin === true if available
+    let hasAdminClaim = false;
+    try {
+      const userRecord = await adminAuth.getUser(verifiedUser.uid);
+      hasAdminClaim = userRecord.customClaims?.admin === true;
+    } catch {
+      // Ignore lookup error
     }
 
-    return { isAdmin: false };
+    if (isPrimaryAdmin || hasAdminClaim) {
+      return { isAdmin: true, email: verifiedUser.email, uid: verifiedUser.uid };
+    }
+
+    return { isAdmin: false, email: verifiedUser.email, uid: verifiedUser.uid };
   } catch (err) {
     console.warn('Admin token verification error:', err);
     return { isAdmin: false };
   }
 }
 
-export function getAuthoritativeEntitlement(userId: string): ServerEntitlement {
-  if (!userId) return { tier: 'free', source: 'default' };
-  const existing = AUTHORITATIVE_ENTITLEMENTS.get(userId);
-  if (existing) return existing;
-  return { tier: 'free', source: 'default' };
-}
+// -------------------------------------------------------------
+// 2. SERVER-AUTHORITATIVE ENTITLEMENTS (PERSISTED IN FIRESTORE)
+// -------------------------------------------------------------
 
-export function setAuthoritativeEntitlement(userId: string, entitlement: ServerEntitlement) {
-  if (!userId) return;
-  AUTHORITATIVE_ENTITLEMENTS.set(userId, entitlement);
-}
-
-// Persistent Firestore-backed rate limiter targeting `rateLimits` collection.
-// Enforces 15-requests-per-minute limit using Firestore transactions across Vercel cold starts.
-export async function checkRateLimit(identifier: string): Promise<boolean> {
-  const now = Date.now();
-  const safeDocId = identifier.replace(/[^a-zA-Z0-9_\-\.:@]/g, '_') || 'anonymous';
-  const rateLimitRef = doc(firestoreDb, 'rateLimits', safeDocId);
+export async function getAuthoritativeEntitlement(userId: string): Promise<ServerEntitlement> {
+  if (!userId) {
+    return { tier: 'FREE', source: 'default' };
+  }
 
   try {
-    const isAllowed = await runTransaction(firestoreDb, async (transaction) => {
-      const snap = await transaction.get(rateLimitRef);
+    const docRef = adminDb.collection('entitlements').doc(userId);
+    const snap = await docRef.get();
 
-      if (!snap.exists()) {
-        transaction.set(rateLimitRef, {
-          identifier,
-          count: 1,
-          resetAt: now + 60000,
-          updatedAt: new Date().toISOString()
-        });
-        return true;
-      }
+    if (snap.exists) {
+      const data = snap.data() as ServerEntitlement;
+      return {
+        tier: (data.tier?.toUpperCase() as any) || 'FREE',
+        source: data.source || 'default',
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        approvedAt: data.approvedAt,
+        approvedBy: data.approvedBy,
+        paymentReference: data.paymentReference
+      };
+    }
+  } catch (err) {
+    console.warn('Firestore entitlement lookup error:', err);
+  }
 
-      const data = snap.data();
-      const resetAt = typeof data.resetAt === 'number' ? data.resetAt : 0;
-      const count = typeof data.count === 'number' ? data.count : 0;
+  return { tier: 'FREE', source: 'default' };
+}
 
-      // Window expired, reset to 1
-      if (now > resetAt) {
-        transaction.update(rateLimitRef, {
-          count: 1,
-          resetAt: now + 60000,
-          updatedAt: new Date().toISOString()
-        });
-        return true;
-      }
+export async function setAuthoritativeEntitlement(
+  userId: string,
+  entitlement: Partial<ServerEntitlement>
+): Promise<void> {
+  if (!userId) return;
 
-      // Enforce 15-requests-per-minute limit
-      if (count >= 15) {
-        return false;
-      }
+  const now = new Date().toISOString();
+  const normalizedTier = entitlement.tier?.toUpperCase() || 'FREE';
 
-      // Increment count
-      transaction.update(rateLimitRef, {
-        count: count + 1,
-        updatedAt: new Date().toISOString()
-      });
-      return true;
-    });
-
-    return isAllowed;
-  } catch (error) {
-    console.error('Rate limit Firestore transaction error:', error);
-    return true; // Fallback gracefully if Firestore is transiently unreachable
+  try {
+    const docRef = adminDb.collection('entitlements').doc(userId);
+    await docRef.set(
+      {
+        ...entitlement,
+        tier: normalizedTier,
+        updatedAt: now,
+        createdAt: entitlement.createdAt || now
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error('Firestore entitlement persist error:', err);
+    throw err;
   }
 }
 
 // -------------------------------------------------------------
-// 1. AI CHEF ENDPOINT & MODEL RESILIENCE
+// 3. PERSISTENT ATOMIC AI QUOTA MANAGEMENT
 // -------------------------------------------------------------
+
+export async function checkAndIncrementAiUsage(
+  userId: string,
+  isPremium: boolean
+): Promise<{
+  allowed: boolean;
+  reason?: string;
+  message?: string;
+  usage?: { todayCount: number; monthCount: number; remainingMonth: number };
+}> {
+  const maxMonthly = isPremium ? 100 : 5;
+  const maxDaily = isPremium ? 10 : 5;
+
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7); // e.g. "2026-09"
+  const currentDay = now.toISOString().slice(0, 10);   // e.g. "2026-09-24"
+  const safeId = userId || 'anonymous_user';
+
+  const docId = `${safeId}_${currentMonth}`;
+  const usageRef = adminDb.collection('aiUsage').doc(docId);
+
+  try {
+    const result = await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(usageRef);
+      let todayCount = 0;
+      let monthCount = 0;
+      let lastDay = currentDay;
+
+      if (snap.exists) {
+        const data = snap.data() || {};
+        lastDay = data.lastDay || currentDay;
+        monthCount = typeof data.monthCount === 'number' ? data.monthCount : 0;
+        todayCount = (lastDay === currentDay && typeof data.todayCount === 'number') ? data.todayCount : 0;
+      }
+
+      // Check limits
+      if (todayCount >= maxDaily) {
+        return {
+          allowed: false,
+          reason: 'daily_limit',
+          message: `You've reached today's fair-use limit (${maxDaily} questions). Local cooking intelligence, conversions, timers, and recipe steps remain unlimited.`
+        };
+      }
+
+      if (monthCount >= maxMonthly) {
+        return {
+          allowed: false,
+          reason: 'monthly_limit',
+          message: isPremium
+            ? "You've reached this month's AI Chef fair-use allowance (100 responses). Downloaded recipes, local scaling, and kitchen timers remain unlimited."
+            : "You've used your 5 free AI Chef trial questions. Unlock the World (₦2,500 once) for 100 monthly responses and the full global recipe collection!"
+        };
+      }
+
+      const nextToday = todayCount + 1;
+      const nextMonth = monthCount + 1;
+
+      tx.set(
+        usageRef,
+        {
+          userId: safeId,
+          calendarMonth: currentMonth,
+          lastDay: currentDay,
+          todayCount: nextToday,
+          monthCount: nextMonth,
+          lastRequestAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        },
+        { merge: true }
+      );
+
+      return {
+        allowed: true,
+        usage: {
+          todayCount: nextToday,
+          monthCount: nextMonth,
+          remainingMonth: Math.max(0, maxMonthly - nextMonth)
+        }
+      };
+    });
+
+    return result;
+  } catch (err) {
+    console.error('AI usage transaction error:', err);
+    // Allow through if Firestore transaction fails
+    return {
+      allowed: true,
+      usage: { todayCount: 1, monthCount: 1, remainingMonth: maxMonthly - 1 }
+    };
+  }
+}
+
+// -------------------------------------------------------------
+// 4. PERSISTENT RECIPE QUESTION INTELLIGENCE
+// -------------------------------------------------------------
+
+export async function recordRecipeQuestionInsight(
+  recipeId: string,
+  recipeTitle: string,
+  category: string,
+  question: string
+) {
+  const safeRecipeId = recipeId || 'global';
+  const docRef = adminDb.collection('recipeInsights').doc(safeRecipeId);
+
+  try {
+    await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(docRef);
+      let totalQuestions = 0;
+      let questionCategories: Record<string, number> = {};
+      let topQuestions: Array<{ question: string; category: string; timestamp: string }> = [];
+
+      if (snap.exists) {
+        const data = snap.data() || {};
+        totalQuestions = data.totalQuestions || 0;
+        questionCategories = data.questionCategories || {};
+        topQuestions = data.topQuestions || [];
+      }
+
+      totalQuestions++;
+      questionCategories[category] = (questionCategories[category] || 0) + 1;
+
+      // Keep latest 15 distinct questions
+      topQuestions.unshift({
+        question: question.slice(0, 140),
+        category,
+        timestamp: new Date().toISOString()
+      });
+      if (topQuestions.length > 15) {
+        topQuestions = topQuestions.slice(0, 15);
+      }
+
+      tx.set(
+        docRef,
+        {
+          recipeId: safeRecipeId,
+          recipeTitle: recipeTitle || 'Global Dish',
+          totalQuestions,
+          questionCategories,
+          topQuestions,
+          lastUpdated: new Date().toISOString()
+        },
+        { merge: true }
+      );
+    });
+  } catch (err) {
+    console.warn('Error recording recipe question insight to Firestore:', err);
+  }
+}
+
+// -------------------------------------------------------------
+// 5. AI CHEF FALLBACKS & MODEL RESILIENCE
+// -------------------------------------------------------------
+
 const FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 
 async function generateWithFallback(client: GoogleGenAI, prompt: string, config: any) {
@@ -225,9 +366,14 @@ async function generateWithFallback(client: GoogleGenAI, prompt: string, config:
       } catch (err: any) {
         lastError = err;
         const errMsg = err?.message || String(err);
-        const isTransient = errMsg.includes('503') || errMsg.includes('429') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand') || errMsg.includes('ResourceExhausted');
+        const isTransient =
+          errMsg.includes('503') ||
+          errMsg.includes('429') ||
+          errMsg.includes('UNAVAILABLE') ||
+          errMsg.includes('high demand') ||
+          errMsg.includes('ResourceExhausted');
         if (isTransient) {
-          await new Promise(r => setTimeout(r, (attempt + 1) * 350));
+          await new Promise((r) => setTimeout(r, (attempt + 1) * 350));
         } else {
           break;
         }
@@ -239,107 +385,86 @@ async function generateWithFallback(client: GoogleGenAI, prompt: string, config:
 
 function generateGroundedFallbackResponse(question: string, recipeContext?: any): string {
   if (!recipeContext) {
-    return `Here is a master culinary tip: Keep your pans properly preheated, season in layers throughout cooking, and balance rich flavors with a touch of citrus or acid. You can ask me to scale recipes or set timers anytime!`;
+    return `Here is master culinary guidance: Preheat cookware properly, season in gradual layers, and balance rich notes with fresh acid or citrus. You can ask me to scale ingredients or start step timers anytime!`;
   }
 
   const qLower = question.toLowerCase();
   if (qLower.includes('substitute') || qLower.includes('replace') || qLower.includes('instead')) {
     if (recipeContext.substitutions && recipeContext.substitutions.length > 0) {
-      return `For **${recipeContext.title}**, here are proven substitutions:\n\n${recipeContext.substitutions.map((s: string) => `• ${s}`).join('\n')}`;
+      return `For **${recipeContext.title}**, here are proven culinary substitutions:\n\n${recipeContext.substitutions.map((s: any) => typeof s === 'string' ? `• ${s}` : `• **${s.ingredient}**: Use ${s.substitute} (${s.ratio || '1:1 ratio'})`).join('\n')}`;
     }
-    return `For **${recipeContext.title}**, you can substitute key aromatics or adjust acidity with a touch of fresh lemon or mild vinegar while preserving the authentic flavor.`;
+    return `For **${recipeContext.title}**, adjust aromatics or finish with lemon juice or mild vinegar to preserve authenticity.`;
   }
 
   if (qLower.includes('time') || qLower.includes('how long') || qLower.includes('done')) {
-    return `For **${recipeContext.title}**, total cooking time is approximately **${recipeContext.totalTime || 30} minutes**. Watch for gentle bubbling and appetizing aroma as your best indicators.`;
+    return `For **${recipeContext.title}**, total cooking time is approximately **${recipeContext.totalTime || 30} minutes**. Watch for fragrant aromas and steady bubbling as your primary indicators.`;
   }
 
   if (recipeContext.cookingTips && recipeContext.cookingTips.length > 0) {
-    return `Here is executive chef guidance for **${recipeContext.title}** (${recipeContext.country}):\n\n${recipeContext.cookingTips.map((t: string) => `• ${t}`).join('\n')}`;
+    return `Chef guidance for **${recipeContext.title}** (${recipeContext.country}):\n\n${recipeContext.cookingTips.map((t: string) => `• ${t}`).join('\n')}`;
   }
 
-  return `For **${recipeContext.title}** (${recipeContext.country}), focus on steady heat and taste as you go. You can also adjust servings or set step timers directly!`;
+  return `For **${recipeContext.title}** (${recipeContext.country}), maintain steady heat and taste as you season. You can scale servings or start step timers directly in the recipe!`;
 }
+
+// -------------------------------------------------------------
+// 6. ROUTE HANDLERS
+// -------------------------------------------------------------
 
 export async function handleAskChef(req: Request, res: Response) {
   try {
-    const {
-      userId,
-      recipeId,
-      userQuestion,
-      recipeContext,
-      currentUsage = { totalCount: 0, rollingCount: 0, todayCount: 0 },
-      conversationHistory = []
-    } = req.body;
+    const { userQuestion, recipeId, recipeContext, conversationHistory = [] } = req.body;
 
     if (!userQuestion || typeof userQuestion !== 'string') {
       return res.status(400).json({ error: 'Question is required.' });
     }
 
-    const clientId = userId || req.ip || (req.headers['x-forwarded-for'] as string) || 'anonymous';
-    const isRateAllowed = await checkRateLimit(clientId);
-    if (!isRateAllowed) {
-      return res.status(429).json({
-        error: 'Too many requests. Please wait a moment before asking Chef another question.'
-      });
-    }
+    // Authenticate user identity from token if provided
+    const verifiedUser = await verifyUserToken(req);
+    const userId = verifiedUser?.uid || req.body.userId || '';
 
-    // Authoritative check on entitlement from server
-    const serverEntitlement = getAuthoritativeEntitlement(userId);
-    const isPremium = serverEntitlement.tier === 'premium' || serverEntitlement.tier === 'test_premium';
-    const maxMonthly = isPremium ? 100 : 5;
-    const maxDaily = isPremium ? 10 : 5;
+    // Check server-authoritative entitlement
+    const entitlement = await getAuthoritativeEntitlement(userId);
+    const isPremium = entitlement.tier === 'PREMIUM' || entitlement.tier === 'TEST_PREMIUM';
 
-    if (currentUsage.todayCount >= maxDaily) {
+    // Atomic quota enforcement in Firestore
+    const quotaCheck = await checkAndIncrementAiUsage(userId, isPremium);
+    if (!quotaCheck.allowed) {
       return res.status(403).json({
         limitReached: true,
-        error: 'Daily AI limit reached',
-        message: "You've reached today's AI Chef fair-use limit (10 questions). Local cooking intelligence, conversions, timers, and recipe steps remain unlimited."
+        error: quotaCheck.reason,
+        message: quotaCheck.message
       });
     }
 
-    if (currentUsage.rollingCount >= maxMonthly) {
-      return res.status(403).json({
-        limitReached: true,
-        error: 'Monthly AI limit reached',
-        message: isPremium
-          ? "You've reached this month's AI Chef fair-use allowance (100 responses). Downloaded recipes, local scaling, substitutions, and kitchen timers remain completely accessible."
-          : "You've used your 5 free AI Chef trial questions. Unlock the World (₦2,500 once) for 100 monthly responses and the full 300+ global recipe collection!"
-      });
-    }
-
-    // Classify category for recipe insights
+    // Categorize culinary question for analytics
     let category = 'technique';
     const qLower = userQuestion.toLowerCase();
     if (qLower.includes('substitute') || qLower.includes('replace') || qLower.includes('instead of')) category = 'substitutions';
-    else if (qLower.includes('hard') || qLower.includes('soft') || qLower.includes('mushy') || qLower.includes('thick') || qLower.includes('texture')) category = 'texture';
+    else if (qLower.includes('hard') || qLower.includes('soft') || qLower.includes('mushy') || qLower.includes('texture')) category = 'texture';
     else if (qLower.includes('salt') || qLower.includes('sour') || qLower.includes('acid') || qLower.includes('sweet') || qLower.includes('fix')) category = 'troubleshooting';
     else if (qLower.includes('time') || qLower.includes('long') || qLower.includes('done') || qLower.includes('minutes')) category = 'cooking_time';
     else if (qLower.includes('spicy') || qLower.includes('pepper') || qLower.includes('hot')) category = 'spice_level';
     else if (qLower.includes('oven') || qLower.includes('stove') || qLower.includes('pan') || qLower.includes('pot')) category = 'equipment';
 
-    // Record insight for Admin Console
-    recipeQuestionInsights.unshift({
-      recipeId: recipeId || 'global',
-      recipeTitle: recipeContext?.title || 'Global Exploration',
+    // Record question intelligence asynchronously
+    recordRecipeQuestionInsight(
+      recipeId || 'global',
+      recipeContext?.title || 'Global Dish',
       category,
-      question: userQuestion.slice(0, 120),
-      timestamp: new Date().toISOString(),
-      handledByGemini: true
-    });
-    if (recipeQuestionInsights.length > 300) recipeQuestionInsights.pop();
+      userQuestion
+    );
 
     let replyText = '';
 
     if (aiClient) {
-      let systemInstruction = `You are the executive culinary mentor of "Palate & Place", an authentic global cookbook and cultural food passport.
+      let systemInstruction = `You are the executive culinary mentor of "Palate & Place", an authentic global cookbook and food journal.
 Core positioning: "Discover places through food."
 Role: Warm, culturally respectful, authoritative, and practical.
-Tone: Encouraging, direct, and helpful for home cooks. Avoid excessive preamble. Provide complete, actionable culinary advice with clear steps or clean bullet points.
-Always finish your thoughts and explanations completely so your advice never cuts off or stops halfway.`;
+Tone: Encouraging, direct, and clear. Avoid fluff. Provide complete culinary advice with clean formatting. Ensure all sentences and thoughts are fully completed.`;
 
       if (recipeContext) {
-        systemInstruction += `\n\nCURRENT AUTHENTIC DISH CONTEXT:
+        systemInstruction += `\n\nAUTHENTIC DISH CONTEXT:
 Title: ${recipeContext.title} (${recipeContext.country}, ${recipeContext.continent})
 Servings: ${recipeContext.servings}
 Ingredients: ${JSON.stringify(recipeContext.ingredients)}
@@ -349,14 +474,12 @@ Chef Tips: ${JSON.stringify(recipeContext.cookingTips || [])}
 Spice Level: ${recipeContext.spiceLevel} / 5
 
 RULES:
-1. Stay strictly anchored to this dish and its authentic cultural technique.
-2. If fixing a culinary issue (e.g. over-salted, sauce separated, rice burnt), provide immediate, easy home remedies.
-3. Keep responses nicely formatted with markdown bullet points or steps, and ensure every sentence is fully completed.`;
-      } else {
-        systemInstruction += `\n\nYou are answering a global cooking or ingredients question. Ground your answer in world culinary heritage, practical kitchen wisdom, and clear step-by-step guidance. Always provide a full, complete response without cutting off.`;
+1. Stay strictly anchored to this dish and authentic culinary technique.
+2. If troubleshooting an issue, offer practical home kitchen fixes.
+3. Finish your response completely.`;
       }
 
-      const prompt = `User cooking question: "${userQuestion}"`;
+      const prompt = `Cook's question: "${userQuestion}"`;
 
       try {
         const response = await generateWithFallback(aiClient, prompt, {
@@ -366,7 +489,7 @@ RULES:
         });
         replyText = response.text || '';
       } catch (geminiErr: any) {
-        console.warn('Gemini temporary spike / fallback triggered:', geminiErr?.message || geminiErr);
+        console.warn('Gemini fallback triggered:', geminiErr?.message || geminiErr);
         replyText = generateGroundedFallbackResponse(userQuestion, recipeContext);
       }
     } else {
@@ -382,12 +505,7 @@ RULES:
       handledByGemini: true,
       category,
       response: replyText,
-      usage: {
-        totalCount: currentUsage.totalCount + 1,
-        rollingCount: currentUsage.rollingCount + 1,
-        todayCount: currentUsage.todayCount + 1
-      },
-      remainingThisMonth: Math.max(0, maxMonthly - (currentUsage.rollingCount + 1))
+      usage: quotaCheck.usage
     });
   } catch (error: any) {
     console.error('Ask Chef Unexpected Error:', error);
@@ -396,15 +514,11 @@ RULES:
       success: true,
       handledByGemini: false,
       category: 'general',
-      response: fallback,
-      usage: req.body?.currentUsage || { totalCount: 0, rollingCount: 0, todayCount: 0 }
+      response: fallback
     });
   }
 }
 
-// -------------------------------------------------------------
-// 1B. SMART NATURAL-LANGUAGE SEARCH INTENT ENDPOINT
-// -------------------------------------------------------------
 export async function handleSmartSearch(req: Request, res: Response) {
   try {
     const { query, recipes = [] } = req.body;
@@ -416,16 +530,16 @@ export async function handleSmartSearch(req: Request, res: Response) {
       return res.status(503).json({ error: 'AI client not initialized' });
     }
 
-    const systemInstruction = `You are the culinary search engine for Palate & Place, an authentic world cuisine discovery platform.
-Given a user query (e.g. "I want something spicy", "comfort food with rice and chicken", "quick light dinner for hot weather"), analyze the culinary intent and select the top matching recipe IDs from the provided candidate list.
-Respond ONLY with a valid JSON object in this exact schema:
+    const systemInstruction = `You are the culinary search analyzer for Palate & Place.
+Analyze the user's culinary query and match the top recipe IDs from the candidate list.
+Respond ONLY with JSON:
 {
-  "matchedRecipeIds": ["string", "string", ...],
-  "intentLabel": "Short 2-4 word intent tag (e.g. 'Spicy Comfort Foods', 'Quick Weeknight Dinners')",
-  "explanation": "A clean 1-sentence explanation of why these match"
+  "matchedRecipeIds": ["string"],
+  "intentLabel": "Short tag (e.g. 'Spicy Comfort Foods')",
+  "explanation": "1-sentence summary"
 }`;
 
-    const prompt = `User Query: "${query}"\n\nCandidate Recipes:\n${JSON.stringify(recipes.slice(0, 60))}`;
+    const prompt = `Query: "${query}"\nCandidates: ${JSON.stringify(recipes.slice(0, 60))}`;
 
     const response = await aiClient.models.generateContent({
       model: 'gemini-3.8-flash',
@@ -453,38 +567,37 @@ Respond ONLY with a valid JSON object in this exact schema:
     });
   } catch (err: any) {
     console.error('Smart Search Gemini Error:', err);
-    return res.status(500).json({ error: 'Failed to process AI search' });
+    return res.status(500).json({ error: 'Failed to process search' });
   }
 }
 
-// -------------------------------------------------------------
-// 2. RECIPE RETRIEVAL (SERVER AUTHORITATIVE - PROTECTS CONTENT)
-// -------------------------------------------------------------
-export function handleGetRecipe(req: Request, res: Response) {
+export async function handleGetRecipe(req: Request, res: Response) {
   const urlParts = req.url.split('?');
   const query = new URLSearchParams(urlParts[1] || '');
   const recipeId = query.get('id') || req.params?.id;
-  const userId = query.get('userId') || (req.headers['x-user-id'] as string) || '';
 
   if (!recipeId) {
     return res.status(400).json({ error: 'Recipe ID is required.' });
   }
 
-  // 1. Is it a starter recipe? (Accessible freely to all users)
-  const starter = ALL_STARTER_RECIPES.find(r => r.recipeId === recipeId);
+  // 1. Check starter recipes (freely accessible)
+  const starter = ALL_STARTER_RECIPES.find((r) => r.recipeId === recipeId);
   if (starter) {
     return res.json({ recipe: starter });
   }
 
-  // 2. Premium Recipe: Verify recipe exists in catalog
+  // 2. Check full premium recipe catalog
   const recipe = getFullPremiumRecipeById(recipeId);
   if (!recipe) {
     return res.status(404).json({ error: 'Recipe not found' });
   }
 
-  // 3. Premium Recipe: Verify server-authoritative entitlement
-  const entitlement = getAuthoritativeEntitlement(userId);
-  const isEntitled = entitlement.tier === 'premium' || entitlement.tier === 'test_premium';
+  // 3. Authenticate and check server-authoritative entitlement
+  const verifiedUser = await verifyUserToken(req);
+  const userId = verifiedUser?.uid || query.get('userId') || (req.headers['x-user-id'] as string) || '';
+
+  const entitlement = await getAuthoritativeEntitlement(userId);
+  const isEntitled = entitlement.tier === 'PREMIUM' || entitlement.tier === 'TEST_PREMIUM';
 
   if (!isEntitled) {
     return res.status(403).json({
@@ -493,24 +606,23 @@ export function handleGetRecipe(req: Request, res: Response) {
       title: recipe.title,
       country: recipe.country,
       description: recipe.description,
-      message: 'THIS RECIPE IS PART OF THE WORLD COLLECTION. Unlock 300+ recipes from 50+ countries for ₦2,500 once.'
+      message: 'Unlock the World (₦2,500 once) for full access to this authentic dish.'
     });
   }
 
-  // Entitled: return complete recipe details
   return res.json({ recipe });
 }
 
-// Download Batch Endpoint for Authorized Offline Sync
-export function handleDownloadBatch(req: Request, res: Response) {
-  const { userId, recipeIds } = req.body;
+export async function handleDownloadBatch(req: Request, res: Response) {
+  const verifiedUser = await verifyUserToken(req);
+  const userId = verifiedUser?.uid || req.body?.userId;
 
   if (!userId) {
-    return res.status(401).json({ error: 'User ID is required' });
+    return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const entitlement = getAuthoritativeEntitlement(userId);
-  const isEntitled = entitlement.tier === 'premium' || entitlement.tier === 'test_premium';
+  const entitlement = await getAuthoritativeEntitlement(userId);
+  const isEntitled = entitlement.tier === 'PREMIUM' || entitlement.tier === 'TEST_PREMIUM';
 
   if (!isEntitled) {
     return res.status(403).json({
@@ -519,9 +631,10 @@ export function handleDownloadBatch(req: Request, res: Response) {
     });
   }
 
-  const requestedIds: string[] = Array.isArray(recipeIds) && recipeIds.length > 0
-    ? recipeIds
-    : getAllFullPremiumRecipes().map(r => r.recipeId);
+  const requestedIds: string[] =
+    Array.isArray(req.body?.recipeIds) && req.body.recipeIds.length > 0
+      ? req.body.recipeIds
+      : getAllFullPremiumRecipes().map((r) => r.recipeId);
 
   const recipes = getFullPremiumRecipesBatch(requestedIds);
 
@@ -533,17 +646,17 @@ export function handleDownloadBatch(req: Request, res: Response) {
 }
 
 // -------------------------------------------------------------
-// 3. PAYSTACK INITIALIZATION & VERIFICATION
+// 7. PAYSTACK SECURE PAYMENT FLOW (FAIL CLOSED)
 // -------------------------------------------------------------
+
 export function handlePaystackInit(req: Request, res: Response) {
   const { email, userId } = req.body || {};
-  // Use PNP- prefix for Palate and Place
   const reference = `PNP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
   let rawKey = (process.env.PAYSTACK_PUBLIC_KEY || '').trim().replace(/^["']|["']$/g, '');
   let keyError: string | null = null;
   if (rawKey.startsWith('sk_')) {
-    keyError = "A Secret Key ('sk_...') was configured in PAYSTACK_PUBLIC_KEY. Please set PAYSTACK_PUBLIC_KEY to your Public Key ('pk_...').";
+    keyError = "Secret Key configured in PAYSTACK_PUBLIC_KEY. Please provide Public Key ('pk_...').";
     rawKey = '';
   }
 
@@ -576,7 +689,7 @@ export async function handlePaystackVerify(req: Request, res: Response) {
 
   const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim().replace(/^["']|["']$/g, '');
 
-  // FAIL CLOSED: if no secret key is provided and this is not a mock dev run, refuse to verify
+  // FAIL CLOSED: if no secret key configured, fail securely
   if (!secretKey || secretKey.length < 15 || secretKey.includes('YOUR_PAYSTACK_SECRET_KEY')) {
     return res.status(500).json({
       verified: false,
@@ -605,7 +718,7 @@ export async function handlePaystackVerify(req: Request, res: Response) {
 
     const transactionData = data.data;
 
-    // Validate correct amount and currency
+    // Validate correct amount (₦2,500 = 250,000 kobo) and currency
     if (transactionData.amount !== 250000 || transactionData.currency !== 'NGN') {
       return res.status(400).json({
         verified: false,
@@ -613,41 +726,50 @@ export async function handlePaystackVerify(req: Request, res: Response) {
       });
     }
 
-    // Save payment record
-    PAYMENTS_REGISTRY.set(reference, {
-      reference,
-      userId: userId || 'anonymous',
-      email: email || transactionData.customer?.email || '',
-      amount: 2500,
-      currency: 'NGN',
-      status: 'success',
-      verifiedAt: new Date().toISOString()
-    });
+    const targetUserId = userId || transactionData.metadata?.userId;
+    const now = new Date().toISOString();
 
-    // Grant server entitlement
-    if (userId) {
-      setAuthoritativeEntitlement(userId, {
-        tier: 'premium',
+    // Idempotent payment persistence in Firestore
+    const paymentDocRef = adminDb.collection('payments').doc(reference);
+    await paymentDocRef.set(
+      {
+        userId: targetUserId || 'anonymous',
+        paystackReference: reference,
+        amount: 2500,
+        currency: 'NGN',
+        status: 'success',
+        createdAt: now,
+        verifiedAt: now,
+        email: email || transactionData.customer?.email || ''
+      },
+      { merge: true }
+    );
+
+    // Grant server entitlement permanently in Firestore
+    if (targetUserId) {
+      await setAuthoritativeEntitlement(targetUserId, {
+        tier: 'PREMIUM',
         source: 'purchase',
-        unlockedAt: new Date().toISOString(),
-        paystackReference: reference
+        createdAt: now,
+        updatedAt: now,
+        paymentReference: reference
       });
     }
 
     return res.json({
       verified: true,
       reference,
-      userId,
+      userId: targetUserId,
       entitlement: {
         tier: 'premium',
         source: 'purchase',
-        unlockedAt: new Date().toISOString(),
+        unlockedAt: now,
         paystackReference: reference
       },
-      message: 'Palate & Place World Unlock successfully activated!'
+      message: 'Palate & Place World Unlock activated!'
     });
   } catch (err: any) {
-    console.error('Paystack API verification error:', err);
+    console.error('Paystack verification error:', err);
     return res.status(500).json({
       verified: false,
       message: 'Could not communicate with Paystack API: ' + err.message
@@ -655,21 +777,16 @@ export async function handlePaystackVerify(req: Request, res: Response) {
   }
 }
 
-// Paystack Webhook Handler with HMAC-SHA512 verification
-export function handlePaystackWebhook(req: Request, res: Response) {
+export async function handlePaystackWebhook(req: Request, res: Response) {
   const signature = req.headers['x-paystack-signature'] as string | undefined;
   const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim().replace(/^["']|["']$/g, '');
   const rawBody = (req as any).rawBody;
 
   if (!signature || !secretKey || !rawBody) {
-    return res.status(401).json({ error: 'Unauthorized: Missing signature, raw body buffer, or secret key' });
+    return res.status(401).json({ error: 'Unauthorized: Missing signature or payload' });
   }
 
-  const generatedHash = crypto
-    .createHmac('sha512', secretKey)
-    .update(rawBody)
-    .digest('hex');
-
+  const generatedHash = crypto.createHmac('sha512', secretKey).update(rawBody).digest('hex');
   const sigBuf = Buffer.from(signature);
   const hashBuf = Buffer.from(generatedHash);
 
@@ -685,220 +802,267 @@ export function handlePaystackWebhook(req: Request, res: Response) {
     const amount = data.amount;
 
     if (amount === 250000 && data.currency === 'NGN') {
-      PAYMENTS_REGISTRY.set(reference, {
-        reference,
-        userId: userId || 'unknown',
-        email: data.customer?.email || '',
-        amount: 2500,
-        currency: 'NGN',
-        status: 'success',
-        verifiedAt: new Date().toISOString()
-      });
+      const now = new Date().toISOString();
+      const paymentRef = adminDb.collection('payments').doc(reference);
+      await paymentRef.set(
+        {
+          userId: userId || 'unknown',
+          paystackReference: reference,
+          amount: 2500,
+          currency: 'NGN',
+          status: 'success',
+          createdAt: now,
+          verifiedAt: now,
+          email: data.customer?.email || ''
+        },
+        { merge: true }
+      );
 
       if (userId) {
-        setAuthoritativeEntitlement(userId, {
-          tier: 'premium',
+        await setAuthoritativeEntitlement(userId, {
+          tier: 'PREMIUM',
           source: 'purchase',
-          unlockedAt: new Date().toISOString(),
-          paystackReference: reference
+          createdAt: now,
+          updatedAt: now,
+          paymentReference: reference
         });
       }
     }
   }
 
-  // Acknowledge Paystack webhook immediately
   return res.status(200).send('OK');
 }
 
 // -------------------------------------------------------------
-// 4. TEST PREMIUM REQUEST & ADMIN CONSOLE WORKFLOW
+// 8. TEST PREMIUM REQUESTS & CURATOR CONSOLE (FIRESTORE PERSISTENT)
 // -------------------------------------------------------------
 
-export function handleRequestTestPremium(req: Request, res: Response) {
-  const { userId, name, email } = req.body;
+export async function handleRequestTestPremium(req: Request, res: Response) {
+  const verifiedUser = await verifyUserToken(req);
+  const userId = verifiedUser?.uid || req.body.userId;
+  const email = verifiedUser?.email || req.body.email;
+  const name = req.body.name || email?.split('@')[0] || 'Reviewer';
 
   if (!userId || !email) {
-    return res.status(400).json({ error: 'User ID and email are required' });
+    return res.status(400).json({ error: 'Authentication required to submit reviewer request' });
   }
 
   const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-  const record: TesterRequest = {
-    id: requestId,
+  const record: StoredTesterRequest = {
+    requestId,
     userId,
-    name: name || email.split('@')[0],
+    name,
     email,
     requestedAt: new Date().toISOString(),
-    status: 'pending'
+    status: 'PENDING'
   };
 
-  TESTER_REQUESTS.set(requestId, record);
-
-  // Send real admin notification
-  ADMIN_NOTIFICATIONS.unshift({
-    id: `notif-${Date.now()}`,
-    recipient: PRIMARY_ADMIN_EMAIL,
-    subject: `New Palate & Place Test Premium Request from ${name || email}`,
-    message: `User ${name || email} (${email}) requested Test Premium access. Request ID: ${requestId}. Review in Admin Console.`,
-    timestamp: new Date().toISOString()
-  });
-
-  return res.json({
-    success: true,
-    requestId,
-    message: 'Test Premium request submitted for administrator review.'
-  });
+  try {
+    await adminDb.collection('premiumRequests').doc(requestId).set(record);
+    return res.json({
+      success: true,
+      requestId,
+      message: 'Reviewer request logged for curator review.'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to record request: ' + err.message });
+  }
 }
 
 export async function handleApproveTestPremium(req: Request, res: Response) {
   const { isAdmin, email: adminEmail } = await verifyAdminToken(req);
-
   if (!isAdmin) {
-    return res.status(403).json({ error: 'Unauthorized: Firebase custom claim "admin: true" required.' });
+    return res.status(403).json({ error: 'Unauthorized: Curator credentials required.' });
   }
 
   const { requestId, userId } = req.body;
-  const request = TESTER_REQUESTS.get(requestId);
-  const targetUserId = userId || request?.userId;
+  const targetUserId = userId;
 
   if (!targetUserId) {
     return res.status(400).json({ error: 'Target user ID is missing' });
   }
 
-  if (request) {
-    request.status = 'approved';
-    request.reviewedAt = new Date().toISOString();
-    request.reviewedBy = adminEmail || 'admin';
+  const now = new Date().toISOString();
+
+  if (requestId) {
+    try {
+      await adminDb.collection('premiumRequests').doc(requestId).set(
+        {
+          status: 'APPROVED',
+          reviewedAt: now,
+          reviewedBy: adminEmail || 'curator'
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Error updating request status:', err);
+    }
   }
 
-  const entitlement: ServerEntitlement = {
-    tier: 'test_premium',
+  await setAuthoritativeEntitlement(targetUserId, {
+    tier: 'TEST_PREMIUM',
     source: 'test',
-    unlockedAt: new Date().toISOString(),
-    approvedBy: adminEmail || 'admin'
-  };
-
-  setAuthoritativeEntitlement(targetUserId, entitlement);
+    updatedAt: now,
+    approvedAt: now,
+    approvedBy: adminEmail || 'curator'
+  });
 
   return res.json({
     success: true,
-    entitlement,
-    message: `Test Premium successfully granted to user ${targetUserId}`
+    message: `Test Premium granted to user ${targetUserId}`
   });
 }
 
 export async function handleRevokeTestPremium(req: Request, res: Response) {
   const { isAdmin, email: adminEmail } = await verifyAdminToken(req);
-
   if (!isAdmin) {
-    return res.status(403).json({ error: 'Unauthorized: Firebase custom claim "admin: true" required.' });
+    return res.status(403).json({ error: 'Unauthorized: Curator credentials required.' });
   }
 
   const { requestId, userId } = req.body;
-  const request = TESTER_REQUESTS.get(requestId);
-  const targetUserId = userId || request?.userId;
+  const targetUserId = userId;
 
   if (!targetUserId) {
     return res.status(400).json({ error: 'Target user ID is missing' });
   }
 
-  if (request) {
-    request.status = 'revoked';
-    request.reviewedAt = new Date().toISOString();
-    request.reviewedBy = adminEmail || 'admin';
+  const now = new Date().toISOString();
+
+  if (requestId) {
+    try {
+      await adminDb.collection('premiumRequests').doc(requestId).set(
+        {
+          status: 'REVOKED',
+          reviewedAt: now,
+          reviewedBy: adminEmail || 'curator'
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Error updating request status:', err);
+    }
   }
 
-  // Revoke tier back to free without deleting user's favorites, history, or passport!
-  const entitlement: ServerEntitlement = {
-    tier: 'free',
+  await setAuthoritativeEntitlement(targetUserId, {
+    tier: 'FREE',
     source: 'revoked',
-    unlockedAt: new Date().toISOString(),
-    approvedBy: adminEmail || 'admin'
-  };
-
-  setAuthoritativeEntitlement(targetUserId, entitlement);
+    updatedAt: now,
+    approvedBy: adminEmail || 'curator'
+  });
 
   return res.json({
     success: true,
-    entitlement,
     message: `Test Premium revoked for user ${targetUserId}. Personal history preserved.`
   });
 }
 
 export async function handleAdminOverview(req: Request, res: Response) {
   const { isAdmin } = await verifyAdminToken(req);
-
   if (!isAdmin) {
-    return res.status(403).json({ error: 'Unauthorized. Admin credentials with custom claim "admin: true" required.' });
+    return res.status(403).json({ error: 'Unauthorized: Curator access required.' });
   }
 
-  // Aggregate metrics
-  let premiumCount = 0;
-  let testPremiumCount = 0;
-  AUTHORITATIVE_ENTITLEMENTS.forEach(ent => {
-    if (ent.tier === 'premium') premiumCount++;
-    if (ent.tier === 'test_premium') testPremiumCount++;
-  });
+  try {
+    const requestsSnap = await adminDb.collection('premiumRequests').get();
+    const requests: any[] = [];
+    requestsSnap.forEach((d) => requests.push(d.data()));
 
-  return res.json({
-    stats: {
-      totalUsers: Math.max(AUTHORITATIVE_ENTITLEMENTS.size, 1),
-      premiumUsers: premiumCount,
-      testPremiumUsers: testPremiumCount,
-      pendingRequests: Array.from(TESTER_REQUESTS.values()).filter(r => r.status === 'pending').length,
-      totalPayments: PAYMENTS_REGISTRY.size,
-      totalQuestionsLogged: recipeQuestionInsights.length
-    },
-    requests: Array.from(TESTER_REQUESTS.values()).reverse(),
-    payments: Array.from(PAYMENTS_REGISTRY.values()).reverse(),
-    notifications: ADMIN_NOTIFICATIONS.slice(0, 20),
-    insights: recipeQuestionInsights.slice(0, 50)
-  });
+    const paymentsSnap = await adminDb.collection('payments').get();
+    const payments: any[] = [];
+    paymentsSnap.forEach((d) => payments.push(d.data()));
+
+    const entitlementsSnap = await adminDb.collection('entitlements').get();
+    let premiumUsers = 0;
+    let testPremiumUsers = 0;
+    entitlementsSnap.forEach((d) => {
+      const tier = d.data().tier?.toUpperCase();
+      if (tier === 'PREMIUM') premiumUsers++;
+      if (tier === 'TEST_PREMIUM') testPremiumUsers++;
+    });
+
+    const insightsSnap = await adminDb.collection('recipeInsights').get();
+    const insights: any[] = [];
+    insightsSnap.forEach((d) => insights.push(d.data()));
+
+    return res.json({
+      stats: {
+        totalUsers: Math.max(entitlementsSnap.size, 1),
+        premiumUsers,
+        testPremiumUsers,
+        pendingRequests: requests.filter((r) => r.status === 'PENDING' || r.status === 'pending').length,
+        totalPayments: payments.length,
+        totalQuestionsLogged: insights.reduce((acc, i) => acc + (i.totalQuestions || 0), 0)
+      },
+      requests: requests.reverse(),
+      payments: payments.reverse(),
+      insights
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Error fetching admin overview: ' + err.message });
+  }
 }
 
-// User-facing Entitlement Check
-export function handleGetEntitlement(req: Request, res: Response) {
+export async function handleGetEntitlement(req: Request, res: Response) {
+  const verifiedUser = await verifyUserToken(req);
   const urlParts = req.url.split('?');
   const query = new URLSearchParams(urlParts[1] || '');
-  const userId = query.get('userId') || (req.headers['x-user-id'] as string) || '';
+  const userId = verifiedUser?.uid || query.get('userId') || (req.headers['x-user-id'] as string) || '';
 
-  const entitlement = getAuthoritativeEntitlement(userId);
-  return res.json({ entitlement });
-}
-
-// Recipe Insights endpoint for Admin Console
-export function handleGetRecipeInsights(_req: Request, res: Response) {
+  const entitlement = await getAuthoritativeEntitlement(userId);
   return res.json({
-    totalQuestionsLogged: recipeQuestionInsights.length,
-    insights: recipeQuestionInsights
+    entitlement: {
+      tier: entitlement.tier.toLowerCase(),
+      source: entitlement.source,
+      unlockedAt: entitlement.updatedAt,
+      paystackReference: entitlement.paymentReference
+    }
   });
 }
 
-// Development fast premium toggle for admin accounts
+export async function handleGetRecipeInsights(_req: Request, res: Response) {
+  try {
+    const snap = await adminDb.collection('recipeInsights').get();
+    const insights: any[] = [];
+    snap.forEach((d) => insights.push(d.data()));
+    return res.json({
+      totalInsights: insights.length,
+      insights
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Error loading insights: ' + err.message });
+  }
+}
+
 export async function handleDevGrantPremium(req: Request, res: Response) {
   const { isAdmin, email: adminEmail } = await verifyAdminToken(req);
-
   if (!isAdmin) {
     return res.status(403).json({
       error: 'Unauthorized',
-      message: 'Fast dev test access is restricted to administrators with custom claim "admin: true".'
+      message: 'Fast dev test access is restricted to verified curator accounts.'
     });
   }
 
   const { userId } = req.body;
-  const entitlement: ServerEntitlement = {
-    tier: 'test_premium',
-    source: 'dev',
-    unlockedAt: new Date().toISOString(),
-    approvedBy: adminEmail || 'admin'
-  };
+  const now = new Date().toISOString();
 
   if (userId) {
-    setAuthoritativeEntitlement(userId, entitlement);
+    await setAuthoritativeEntitlement(userId, {
+      tier: 'TEST_PREMIUM',
+      source: 'dev',
+      updatedAt: now,
+      approvedAt: now,
+      approvedBy: adminEmail || 'curator'
+    });
   }
 
   return res.json({
     success: true,
-    entitlement,
+    entitlement: {
+      tier: 'test_premium',
+      source: 'dev',
+      unlockedAt: now,
+      approvedBy: adminEmail || 'curator'
+    },
     message: `Test Premium activated by administrator ${adminEmail || ''}`
   });
 }

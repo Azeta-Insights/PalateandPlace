@@ -1,8 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { KitchenProvider, useKitchen } from './context/KitchenContext';
-import { ALL_RECIPES } from './data/recipes';
-import { Recipe, Continent } from './types/recipe';
+import { Recipe } from './types/recipe';
 import { Navbar, AppView } from './components/Navbar';
 import { EditorialHomeScreen } from './components/EditorialHomeScreen';
 import { ExploreWorldView } from './components/ExploreWorldView';
@@ -20,7 +19,6 @@ import { Sparkles, Compass } from 'lucide-react';
 
 function AppContent() {
   const {
-    user,
     profile,
     isPremium,
     isOnline
@@ -29,7 +27,6 @@ function AppContent() {
   const {
     favorites,
     passport,
-    cookingHistory,
     shoppingList,
     downloadedRecipeIds,
     toggleFavorite,
@@ -72,12 +69,12 @@ function AppContent() {
     setIsAIChefOpen(true);
   };
 
-  const handleCountryExploreFromPassport = (countryName: string) => {
+  const handleCountryExploreFromPassport = (_countryName: string) => {
     setCurrentView('explore');
   };
 
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col selection:bg-amber-500 selection:text-stone-950">
+    <div className="min-h-screen bg-[#FBF9F5] text-[#231B15] flex flex-col selection:bg-[#C85A32]/20 selection:text-[#231B15]">
       
       {/* Navigation Header */}
       <Navbar
@@ -101,7 +98,7 @@ function AppContent() {
         {currentView === 'home' && (
           <EditorialHomeScreen
             onSelectRecipe={(r) => setSelectedRecipe(r)}
-            onOpenExplore={(continent) => {
+            onOpenExplore={() => {
               setCurrentView('explore');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
@@ -151,9 +148,9 @@ function AppContent() {
           setAiChefInitialPrompt(undefined);
           setIsAIChefOpen(true);
         }}
-        className="fixed bottom-6 left-6 z-30 hidden sm:flex px-4 py-3 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-bold text-xs sm:text-sm shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 items-center gap-2 transition-all transform hover:scale-105 active:scale-95"
+        className="fixed bottom-6 left-6 z-30 hidden sm:flex px-4 py-3 rounded-full bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] font-semibold text-xs sm:text-sm shadow-xl items-center gap-2 transition-all transform hover:scale-105 active:scale-95 border border-[#E8E1D7]"
       >
-        <Sparkles className="w-4 h-4 fill-stone-950" />
+        <Sparkles className="w-4 h-4 text-[#E8DAB7]" />
         <span>Ask AI Chef</span>
       </button>
 
@@ -181,7 +178,7 @@ function AppContent() {
         onRemoveTimer={handleRemoveTimer}
       />
 
-      {/* Surprise Me Modal (Feature 28) */}
+      {/* Surprise Me Modal */}
       <SurpriseMeModal
         isOpen={isSurpriseMeOpen}
         onClose={() => setIsSurpriseMeOpen(false)}
@@ -228,7 +225,7 @@ function AppContent() {
         onClose={() => setIsUnlockOpen(false)}
       />
 
-      {/* Admin Console Modal */}
+      {/* Admin / Curator Portal Modal */}
       <AdminConsoleModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
@@ -240,22 +237,22 @@ function AppContent() {
         onClose={() => setIsAuthOpen(false)}
       />
 
-      {/* Footer */}
-      <footer className="border-t border-stone-800/80 bg-stone-950 py-10 text-stone-400 text-xs">
+      {/* Editorial Footer */}
+      <footer className="border-t border-[#E8E1D7] bg-[#F7F4EE] py-10 text-[#5E5248] text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Compass className="w-4 h-4 text-amber-500" />
-            <span className="font-serif font-bold text-stone-200">Palate & Place</span>
+            <Compass className="w-4 h-4 text-[#C85A32]" />
+            <span className="font-serif font-bold text-[#231B15]">Palate & Place</span>
             <span>—</span>
             <span>Discover places through food.</span>
           </div>
 
-          <div className="flex items-center gap-4 text-stone-400">
+          <div className="flex items-center gap-4 text-[#8E8277]">
             <span>50 Free Starter Recipes</span>
             <span>•</span>
             <span>Offline Ready</span>
             <span>•</span>
-            <span>Paystack ₦2,500 Lifetime</span>
+            <span>World Pass Lifetime</span>
           </div>
         </div>
       </footer>

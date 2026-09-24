@@ -152,31 +152,31 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-stone-950 rounded-3xl border border-stone-800 shadow-2xl overflow-y-auto max-h-[92dvh] touch-scroll animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-lg bg-[#FBF9F5] rounded-3xl border border-[#E8E1D7] shadow-2xl overflow-y-auto max-h-[92dvh] touch-scroll animate-in zoom-in-95 duration-200"
       >
         {/* Header Ribbon */}
-        <div className="p-4 border-b border-stone-800 flex items-center justify-between bg-stone-900/60">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
-              <Dices className={`w-4 h-4 ${isShuffling ? 'animate-spin text-amber-300' : ''}`} />
+        <div className="p-4 border-b border-[#E8E1D7] flex items-center justify-between bg-white">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#F7F4EE] text-[#C85A32] flex items-center justify-center border border-[#E8E1D7]">
+              <Dices className={`w-4 h-4 ${isShuffling ? 'animate-spin text-[#C85A32]' : ''}`} />
             </div>
             <div>
-              <h3 className="font-serif text-sm font-bold text-stone-100">
-                TAKE ME SOMEWHERE
+              <h3 className="font-serif text-sm font-bold text-[#231B15]">
+                Surprise Culinary Journey
               </h3>
-              <p className="text-[11px] text-stone-400">
-                Random culinary adventure matched to your palate
+              <p className="text-[11px] text-[#8E8277]">
+                A curated adventure matched to your palate
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors"
+            className="p-1.5 rounded-lg text-[#8E8277] hover:text-[#231B15] hover:bg-[#F4F0E8] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -186,17 +186,17 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
         <div className="p-6 space-y-5">
           {/* Destination Callout */}
           <div className="text-center space-y-1">
-            <span className="text-[11px] uppercase tracking-widest text-amber-400 font-bold">
-              TONIGHT WE'RE GOING TO
+            <span className="text-[11px] uppercase tracking-widest text-[#C85A32] font-semibold">
+              TONIGHT'S DESTINATION
             </span>
             <div className="flex items-center justify-center gap-2">
               <span className="text-2xl">{selectedRecipe.countryCode === 'NG' ? '🇳🇬' : selectedRecipe.countryCode === 'TH' ? '🇹🇭' : selectedRecipe.countryCode === 'MA' ? '🇲🇦' : selectedRecipe.countryCode === 'IT' ? '🇮🇹' : selectedRecipe.countryCode === 'JP' ? '🇯🇵' : selectedRecipe.countryCode === 'MX' ? '🇲🇽' : '🌍'}</span>
-              <h2 className="font-serif text-3xl font-black text-stone-100 uppercase tracking-tight">
+              <h2 className="font-serif text-3xl font-bold text-[#231B15] uppercase tracking-tight">
                 {selectedRecipe.country}
               </h2>
             </div>
             {isUnexplored && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-800 text-[11px] font-semibold text-emerald-400 mt-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#F2F5EC] border border-[#D5DEBF] text-[11px] font-semibold text-[#5C6B38] mt-1">
                 <Compass className="w-3 h-3" />
                 <span>New Destination • Stamp your Passport!</span>
               </div>
@@ -204,8 +204,8 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
           </div>
 
           {/* Recipe Card Preview */}
-          <div className="relative rounded-2xl overflow-hidden border border-stone-800 bg-stone-900 group shadow-lg">
-            <div className="aspect-[16/9] w-full overflow-hidden bg-stone-950">
+          <div className="relative rounded-2xl overflow-hidden border border-[#E8E1D7] bg-white group shadow-sm">
+            <div className="aspect-[16/9] w-full overflow-hidden bg-[#F4F0E8]">
               <img
                 src={selectedRecipe.image}
                 alt={selectedRecipe.title}
@@ -213,7 +213,7 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
                   isShuffling ? 'blur-sm scale-105 opacity-70' : 'group-hover:scale-105'
                 }`}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/30 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#231B15] via-[#231B15]/30 to-transparent" />
             </div>
 
             <div className="absolute bottom-3 inset-x-4">
@@ -221,25 +221,25 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
                 {selectedRecipe.title}
               </h3>
               {selectedRecipe.alternateName && (
-                <p className="text-xs text-amber-300 italic">
+                <p className="text-xs text-[#E8DAB7] italic">
                   {selectedRecipe.alternateName}
                 </p>
               )}
 
-              {/* Clean unboxed metadata with bullet separators */}
-              <div className="flex items-center gap-2 text-xs text-stone-300 mt-1.5">
+              {/* Clean metadata */}
+              <div className="flex items-center gap-2 text-xs text-[#F4F0E8] mt-1.5">
                 <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <Clock className="w-3.5 h-3.5 text-[#E8DAB7]" />
                   {selectedRecipe.totalTime} min
                 </span>
-                <span aria-hidden="true" className="text-stone-500">·</span>
+                <span aria-hidden="true" className="text-[#8E8277]">·</span>
                 <span className="flex items-center gap-1">
-                  <ChefHat className="w-3.5 h-3.5 text-amber-400" />
+                  <ChefHat className="w-3.5 h-3.5 text-[#E8DAB7]" />
                   {selectedRecipe.difficulty}
                 </span>
-                <span aria-hidden="true" className="text-stone-500">·</span>
+                <span aria-hidden="true" className="text-[#8E8277]">·</span>
                 <span className="flex items-center gap-1">
-                  <Flame className="w-3.5 h-3.5 text-amber-400" />
+                  <Flame className="w-3.5 h-3.5 text-[#E8DAB7]" />
                   {selectedRecipe.spiceLevel === 0 ? 'Mild' : `Spice ${selectedRecipe.spiceLevel}/5`}
                 </span>
               </div>
@@ -247,7 +247,7 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
           </div>
 
           {/* Description snippet */}
-          <p className="text-xs text-stone-300 line-clamp-2 leading-relaxed italic text-center px-2">
+          <p className="text-xs text-[#5E5248] line-clamp-2 leading-relaxed italic text-center px-2">
             "{selectedRecipe.description}"
           </p>
 
@@ -256,7 +256,7 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
             <button
               onClick={handleRollDice}
               disabled={isShuffling}
-              className="flex-1 py-3 px-4 rounded-2xl bg-stone-900 hover:bg-stone-800 active:scale-95 text-stone-300 border border-stone-800 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+              className="flex-1 py-3 px-4 rounded-xl bg-white hover:bg-[#F4F0E8] active:scale-95 text-[#5E5248] hover:text-[#231B15] border border-[#E8E1D7] text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isShuffling ? 'animate-spin' : ''}`} />
               <span>{isShuffling ? 'Spinning...' : '🎲 Spin Again'}</span>
@@ -268,10 +268,10 @@ export const SurpriseMeModal: React.FC<SurpriseMeModalProps> = ({
                 onClose();
               }}
               disabled={isShuffling}
-              className="flex-1 py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 text-xs font-bold shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 transition-all"
+              className="flex-1 py-3 px-4 rounded-xl bg-[#231B15] hover:bg-[#3D322A] active:scale-95 text-[#FBF9F5] text-xs font-bold shadow-md flex items-center justify-center gap-1.5 transition-all"
             >
               <span>LET'S COOK</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 text-[#E8DAB7]" />
             </button>
           </div>
         </div>

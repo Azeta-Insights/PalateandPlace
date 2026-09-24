@@ -70,45 +70,44 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   continentCounts
 }) => {
   return (
-    <div className="relative pt-4 pb-6 sm:pt-10 sm:pb-10 border-b border-stone-800/80 bg-gradient-to-b from-stone-900/40 via-stone-950 to-stone-950">
+    <div className="relative pt-6 pb-8 sm:pt-12 sm:pb-12 border-b border-[#E8E1D7] bg-[#F7F4EE]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Header / Brand Title - Streamlined for Mobile Viewports */}
-        <div className="text-center max-w-3xl mx-auto space-y-2 sm:space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 text-[11px] sm:text-xs font-semibold tracking-wider uppercase">
+        {/* Editorial Masthead Headline */}
+        <div className="text-center max-w-3xl mx-auto space-y-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#F2F5EC] border border-[#D5DEBF] text-[#5C6B38] text-[11px] font-semibold tracking-wider uppercase">
             <Compass className="w-3.5 h-3.5" />
-            <span>Interactive World Cookbook</span>
+            <span>Interactive World Culinary Atlas</span>
           </div>
 
-          <h1 className="font-serif text-2xl sm:text-5xl lg:text-6xl font-black text-stone-100 tracking-tight leading-[1.2]">
+          <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-bold text-[#231B15] tracking-tight leading-[1.15]">
             Discover places <br className="hidden sm:inline" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500">
+            <span className="text-[#C85A32] italic font-editorial">
               through food.
             </span>
           </h1>
 
-          <p className="hidden sm:block text-sm sm:text-base text-stone-300 leading-relaxed max-w-2xl mx-auto">
-            From Nigerian Jollof and Tokyo Ramen to authentic Bolognese and Fijian Kokoda. 
-            Enjoy <strong className="text-stone-100">50 free starter recipes ready offline</strong>, stamp your personal Food Passport, and cook with local-first culinary guidance.
+          <p className="text-sm sm:text-base text-[#5E5248] leading-relaxed max-w-2xl mx-auto">
+            From Nigerian Jollof and Tokyo Shoyu Ramen to authentic Roman Carbonara and Peruvian Ceviche. 
+            Enjoy <strong className="text-[#231B15] font-semibold">50 free starter dishes ready offline</strong>, stamp your personal Food Passport, and cook with authentic technique.
           </p>
         </div>
 
-        {/* Unified Search & Quick Filter Bar */}
-        <div className="mt-4 sm:mt-8 max-w-2xl mx-auto flex items-center gap-2">
-          {/* Search Input Box */}
-          <div className="relative flex-1 flex items-center bg-stone-900/90 rounded-2xl border border-stone-800 shadow-xl focus-within:border-amber-500/80 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all">
-            <Search className="w-4 h-4 sm:w-5 sm:h-5 text-stone-400 ml-3.5 sm:ml-4 shrink-0" />
+        {/* Clean Editorial Search & Filter Bar */}
+        <div className="mt-6 sm:mt-8 max-w-2xl mx-auto flex items-center gap-2">
+          <div className="relative flex-1 flex items-center bg-white rounded-xl border border-[#E8E1D7] shadow-sm focus-within:border-[#231B15] focus-within:ring-1 focus-within:ring-[#231B15] transition-all">
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 text-[#8E8277] ml-3.5 sm:ml-4 shrink-0" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search recipes, ingredients, countries..."
-              className="w-full py-3 sm:py-3.5 pl-2.5 sm:pl-3 pr-9 bg-transparent text-xs sm:text-base text-stone-100 placeholder-stone-400 focus:outline-none"
+              placeholder="Search recipes, ingredients, countries, techniques..."
+              className="w-full py-3 sm:py-3.5 pl-2.5 sm:pl-3 pr-9 bg-transparent text-xs sm:text-sm text-[#231B15] placeholder-[#8E8277] focus:outline-none"
             />
             {searchQuery && (
               <button
                 onClick={() => onSearchChange('')}
-                className="p-1.5 mr-2 text-stone-400 hover:text-stone-200 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-1.5 mr-2 text-[#8E8277] hover:text-[#231B15] min-h-[40px] min-w-[40px] flex items-center justify-center"
                 title="Clear search"
               >
                 <X className="w-4 h-4" />
@@ -116,193 +115,131 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             )}
           </div>
 
-          {/* Primary Filter Drawer Trigger Button */}
+          {/* Filter Drawer Trigger */}
           <button
             onClick={onOpenFilterDrawer}
-            className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-2xl border font-bold text-xs sm:text-sm transition-all shadow-xl shrink-0 min-h-[44px] min-w-[44px] ${
+            className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-xl border font-medium text-xs sm:text-sm transition-all shrink-0 min-h-[44px] shadow-sm ${
               activeFiltersCount > 0
-                ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-amber-500/20'
-                : 'bg-stone-900 text-stone-300 border-stone-800 hover:border-stone-700 hover:text-stone-100'
+                ? 'bg-[#231B15] text-[#FBF9F5] border-[#231B15]'
+                : 'bg-white text-[#5E5248] border-[#E8E1D7] hover:border-[#231B15]/40 hover:text-[#231B15]'
             }`}
             title="Open Recipe Filters"
           >
             <SlidersHorizontal className="w-4 h-4" />
             <span className="hidden xs:inline">Filters</span>
             {activeFiltersCount > 0 && (
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                activeFiltersCount > 0 ? 'bg-stone-950 text-amber-400' : 'bg-amber-500 text-stone-950'
-              }`}>
+              <span className="px-1.5 py-0.2 rounded font-mono text-[10px] font-bold bg-[#E8DAB7] text-[#231B15]">
                 {activeFiltersCount}
               </span>
             )}
           </button>
         </div>
 
-        {/* Continent Filter Scroller with Live Counts */}
-        <div className="mt-4 sm:mt-6 flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 sm:justify-center">
-          {CONTINENTS.map((cont) => {
-            const isSelected = selectedContinent === cont.label;
-            const count = continentCounts[cont.label] || 0;
+        {/* Continent Quick Filter Bar */}
+        <div className="mt-5 flex items-center justify-center gap-1.5 overflow-x-auto scrollbar-none py-1">
+          {CONTINENTS.map((c) => {
+            const isSelected = selectedContinent === c.label;
+            const count = continentCounts[c.label] || 0;
             return (
               <button
-                key={cont.label}
-                onClick={() => onSelectContinent(cont.label)}
-                className={`px-3 sm:px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 min-h-[40px] shrink-0 border ${
+                key={c.label}
+                onClick={() => onSelectContinent(c.label)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all border ${
                   isSelected
-                    ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-md shadow-amber-500/20 scale-102 font-bold'
-                    : 'bg-stone-900/80 text-stone-300 hover:text-stone-100 hover:bg-stone-800 border-stone-800/80'
+                    ? 'bg-[#231B15] text-[#FBF9F5] border-[#231B15] shadow-sm'
+                    : 'bg-white text-[#5E5248] border-[#E8E1D7] hover:border-[#231B15]/40 hover:text-[#231B15]'
                 }`}
               >
-                <span>{cont.icon}</span>
-                <span>{cont.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  isSelected ? 'bg-stone-950/20 text-stone-950 font-bold' : 'bg-stone-800 text-stone-400'
-                }`}>
-                  {count}
-                </span>
+                <span>{c.label}</span>
+                {count > 0 && (
+                  <span className={`text-[10px] font-mono ${isSelected ? 'text-[#E8DAB7]' : 'text-[#8E8277]'}`}>
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
 
-        {/* Quick Filter Shortcut Bar (Time & Access) */}
-        <div className="mt-3 flex items-center justify-start sm:justify-center overflow-x-auto pb-1 gap-1.5 text-xs scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-          {/* Free Starter toggle */}
-          <button
-            onClick={onToggleStarterOnly}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap shrink-0 border min-h-[36px] flex items-center gap-1 ${
-              starterOnly
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 font-semibold'
-                : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 border-stone-800'
-            }`}
-          >
-            <span>★ 50 Starters</span>
-            {starterOnly && <Check className="w-3 h-3 text-amber-400" />}
-          </button>
+        {/* Active Filter Tags Strip (Zero-pill clean text tags) */}
+        {(activeFiltersCount > 0 || starterOnly || offlineOnly || quickTimeFilter) && (
+          <div className="mt-4 pt-3 border-t border-[#E8E1D7] flex flex-wrap items-center justify-between gap-2 text-xs text-[#5E5248]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[#8E8277] text-[11px] uppercase tracking-wider font-semibold">Active:</span>
+              
+              {starterOnly && (
+                <button
+                  onClick={onToggleStarterOnly}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F2F5EC] border border-[#D5DEBF] text-[#5C6B38] text-xs font-medium hover:bg-[#E2EBD5]"
+                >
+                  <span>50 Starters Only</span>
+                  <X className="w-3 h-3" />
+                </button>
+              )}
 
-          {/* Offline only toggle */}
-          <button
-            onClick={onToggleOfflineOnly}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap shrink-0 border min-h-[36px] flex items-center gap-1 ${
-              offlineOnly
-                ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/60 font-semibold'
-                : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 border-stone-800'
-            }`}
-          >
-            <span>✓ Offline Ready</span>
-            {offlineOnly && <Check className="w-3 h-3 text-emerald-400" />}
-          </button>
+              {offlineOnly && (
+                <button
+                  onClick={onToggleOfflineOnly}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F2F5EC] border border-[#D5DEBF] text-[#5C6B38] text-xs font-medium hover:bg-[#E2EBD5]"
+                >
+                  <span>Offline Saved</span>
+                  <X className="w-3 h-3" />
+                </button>
+              )}
 
-          {/* Quick time filter */}
-          <button
-            onClick={() => onSelectTimeFilter(quickTimeFilter === 30 ? null : 30)}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap shrink-0 border min-h-[36px] flex items-center gap-1 ${
-              quickTimeFilter === 30
-                ? 'bg-amber-500 text-stone-950 border-amber-400 font-bold'
-                : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 border-stone-800'
-            }`}
-          >
-            <span>⚡ Under 30m</span>
-          </button>
+              {quickTimeFilter && (
+                <button
+                  onClick={() => onSelectTimeFilter(null)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-[#E8E1D7] text-[#231B15] text-xs font-medium"
+                >
+                  <span>≤ {quickTimeFilter} mins</span>
+                  <X className="w-3 h-3" />
+                </button>
+              )}
 
-          <button
-            onClick={() => onSelectTimeFilter(quickTimeFilter === 45 ? null : 45)}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all whitespace-nowrap shrink-0 border min-h-[36px] flex items-center gap-1 ${
-              quickTimeFilter === 45
-                ? 'bg-amber-500 text-stone-950 border-amber-400 font-bold'
-                : 'bg-stone-900/60 text-stone-400 hover:text-stone-200 border-stone-800'
-            }`}
-          >
-            <span>⏱️ Under 45m</span>
-          </button>
+              {selectedDietary.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => onRemoveDietary(tag)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-[#E8E1D7] text-[#231B15] text-xs font-medium"
+                >
+                  <span>{tag}</span>
+                  <X className="w-3 h-3" />
+                </button>
+              ))}
 
-          <span className="text-stone-400 text-[11px] font-mono whitespace-nowrap shrink-0 px-2">
-            ({totalFilteredCount} recipes)
-          </span>
-        </div>
+              {selectedDifficulty !== 'All' && (
+                <button
+                  onClick={onResetDifficulty}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-[#E8E1D7] text-[#231B15] text-xs font-medium"
+                >
+                  <span>Difficulty: {selectedDifficulty}</span>
+                  <X className="w-3 h-3" />
+                </button>
+              )}
 
-        {/* Active Filters Removable Chips Strip (High Efficiency) */}
-        {activeFiltersCount > 0 && (
-          <div className="mt-3.5 pt-3 border-t border-stone-800/60 flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] text-stone-400 font-medium mr-1">Active filters:</span>
-            
-            {selectedContinent !== 'All' && (
+              {selectedMealType !== 'All' && (
+                <button
+                  onClick={onResetMealType}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-[#E8E1D7] text-[#231B15] text-xs font-medium"
+                >
+                  <span>{selectedMealType}</span>
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs text-[#8E8277]">
+                Showing {totalFilteredCount} recipes
+              </span>
               <button
-                onClick={() => onSelectContinent('All')}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition-colors"
+                onClick={onResetAllFilters}
+                className="text-xs text-[#C85A32] hover:underline font-medium"
               >
-                <span>Region: {selectedContinent}</span>
-                <X className="w-3 h-3 text-stone-400" />
+                Reset all
               </button>
-            )}
-
-            {quickTimeFilter && (
-              <button
-                onClick={() => onSelectTimeFilter(null)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition-colors"
-              >
-                <span>≤ {quickTimeFilter} mins</span>
-                <X className="w-3 h-3 text-stone-400" />
-              </button>
-            )}
-
-            {starterOnly && (
-              <button
-                onClick={onToggleStarterOnly}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition-colors"
-              >
-                <span>50 Starters</span>
-                <X className="w-3 h-3 text-stone-400" />
-              </button>
-            )}
-
-            {offlineOnly && (
-              <button
-                onClick={onToggleOfflineOnly}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition-colors"
-              >
-                <span>Offline Only</span>
-                <X className="w-3 h-3 text-stone-400" />
-              </button>
-            )}
-
-            {selectedDietary.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => onRemoveDietary(tag)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-medium border border-amber-500/30 transition-colors"
-              >
-                <span>{tag}</span>
-                <X className="w-3 h-3 text-amber-400" />
-              </button>
-            ))}
-
-            {selectedDifficulty !== 'All' && (
-              <button
-                onClick={onResetDifficulty}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition-colors"
-              >
-                <span>Difficulty: {selectedDifficulty}</span>
-                <X className="w-3 h-3 text-stone-400" />
-              </button>
-            )}
-
-            {selectedMealType !== 'All' && (
-              <button
-                onClick={onResetMealType}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-stone-200 text-[11px] font-medium transition-colors"
-              >
-                <span>Course: {selectedMealType}</span>
-                <X className="w-3 h-3 text-stone-400" />
-              </button>
-            )}
-
-            <button
-              onClick={onResetAllFilters}
-              className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold underline underline-offset-2 ml-1"
-            >
-              Clear all
-            </button>
+            </div>
           </div>
         )}
 

@@ -2,22 +2,13 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile, preferences, and premium entitlement",
+      "description": "User profile, preferences, and personal cooking state",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
-        "entitlement": {
-          "type": "object",
-          "properties": {
-            "tier": { "type": "string", "enum": ["free", "premium", "test_premium"] },
-            "source": { "type": "string", "enum": ["default", "purchase", "test", "dev"] },
-            "unlockedAt": { "type": "string" },
-            "paystackReference": { "type": "string" }
-          }
-        },
         "preferences": {
           "type": "object",
           "properties": {
@@ -29,16 +20,50 @@
             "spicePreference": { "type": "string" }
           }
         },
-        "aiUsage": {
-          "type": "object",
-          "properties": {
-            "totalCount": { "type": "number" },
-            "rollingCount": { "type": "number" },
-            "todayCount": { "type": "number" },
-            "lastUsedAt": { "type": "string" }
-          }
-        },
         "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "Entitlement": {
+      "title": "Entitlement",
+      "description": "Server-authoritative tier and access grant record",
+      "type": "object",
+      "properties": {
+        "tier": { "type": "string", "enum": ["FREE", "PREMIUM", "TEST_PREMIUM"] },
+        "source": { "type": "string", "enum": ["default", "purchase", "test", "dev", "revoked"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "paymentReference": { "type": "string" }
+      }
+    },
+    "Payment": {
+      "title": "Payment Record",
+      "description": "Verified transaction record from Paystack",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "paystackReference": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "verifiedAt": { "type": "string" },
+        "email": { "type": "string" }
+      }
+    },
+    "AiUsage": {
+      "title": "AI Usage Record",
+      "description": "Persistent atomic tracking for AI Chef fair-use limits",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "calendarMonth": { "type": "string" },
+        "lastDay": { "type": "string" },
+        "todayCount": { "type": "number" },
+        "monthCount": { "type": "number" },
+        "lastRequestAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       }
     },
@@ -60,30 +85,31 @@
     },
     "PremiumRequest": {
       "title": "Premium Access Request",
-      "description": "Tester request for test premium access",
+      "description": "Reviewer request for test access",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "requestId": { "type": "string" },
         "userId": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string" },
         "requestedAt": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "revoked"] },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED", "REVOKED"] },
         "reviewedAt": { "type": "string" },
         "reviewedBy": { "type": "string" }
       }
     },
-    "RateLimit": {
-      "title": "Rate Limit",
-      "description": "Persistent rate limiting record tracking requests by client identifier",
+    "RecipeInsight": {
+      "title": "Recipe Insight",
+      "description": "Aggregated culinary questions and common hurdles for recipes",
       "type": "object",
       "properties": {
-        "identifier": { "type": "string" },
-        "count": { "type": "number" },
-        "resetAt": { "type": "number" },
-        "updatedAt": { "type": "string" }
-      },
-      "required": ["identifier", "count", "resetAt"]
+        "recipeId": { "type": "string" },
+        "recipeTitle": { "type": "string" },
+        "totalQuestions": { "type": "number" },
+        "questionCategories": { "type": "object" },
+        "topQuestions": { "type": "array" },
+        "lastUpdated": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -91,13 +117,25 @@
       "schema": "User",
       "description": "Root collection of users"
     },
+    "entitlements": {
+      "schema": "Entitlement",
+      "description": "Server-authoritative user entitlement records"
+    },
+    "payments": {
+      "schema": "Payment",
+      "description": "Verified transaction records"
+    },
+    "aiUsage": {
+      "schema": "AiUsage",
+      "description": "Atomic quota tracking for AI Chef"
+    },
     "premiumRequests": {
       "schema": "PremiumRequest",
       "description": "Root collection of test premium requests"
     },
-    "rateLimits": {
-      "schema": "RateLimit",
-      "description": "Collection of rate limiting records for serverless AI endpoints"
+    "recipeInsights": {
+      "schema": "RecipeInsight",
+      "description": "Aggregated question insights"
     }
   }
 }

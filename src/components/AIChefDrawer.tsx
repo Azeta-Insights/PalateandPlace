@@ -42,7 +42,7 @@ const formatInlineTokens = (text: string, isUser: boolean) => {
       return (
         <strong
           key={i}
-          className={isUser ? 'font-bold text-stone-950' : 'font-semibold text-amber-300'}
+          className={isUser ? 'font-bold text-[#FBF9F5]' : 'font-semibold text-[#C85A32]'}
         >
           {part.slice(2, -2)}
         </strong>
@@ -62,9 +62,9 @@ const renderFormattedChefMessage = (text: string, isUser: boolean) => {
     if (!currentList) return;
     if (currentList.type === 'ul') {
       elements.push(
-        <ul key={`ul-${elements.length}`} className="my-1.5 space-y-1 pl-4 list-disc text-inherit">
+        <ul key={`ul-${elements.length}`} className="my-1.5 space-y-1 pl-4 list-disc text-inherit break-words [overflow-wrap:anywhere]">
           {currentList.items.map((item, idx) => (
-            <li key={idx} className="break-words [overflow-wrap:anywhere]">
+            <li key={idx} className="break-words [overflow-wrap:anywhere] leading-relaxed">
               {formatInlineTokens(item, isUser)}
             </li>
           ))}
@@ -72,9 +72,9 @@ const renderFormattedChefMessage = (text: string, isUser: boolean) => {
       );
     } else {
       elements.push(
-        <ol key={`ol-${elements.length}`} className="my-1.5 space-y-1 pl-4 list-decimal text-inherit">
+        <ol key={`ol-${elements.length}`} className="my-1.5 space-y-1 pl-4 list-decimal text-inherit break-words [overflow-wrap:anywhere]">
           {currentList.items.map((item, idx) => (
-            <li key={idx} className="break-words [overflow-wrap:anywhere]">
+            <li key={idx} className="break-words [overflow-wrap:anywhere] leading-relaxed">
               {formatInlineTokens(item, isUser)}
             </li>
           ))}
@@ -140,10 +140,10 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
     {
       id: 'welcome',
       sender: 'chef',
-      title: 'Welcome to your Global Kitchen!',
+      title: 'Welcome to your Global Kitchen',
       text: activeRecipe
-        ? `Hello! I'm here to help you cook **${activeRecipe.title}** from ${activeRecipe.country}. Ask me for ingredient swaps, cooking time tips, or say "Make this for 2" to adjust servings.`
-        : 'Hello! I am your personal cooking assistant. Ask me for cooking tips, ingredient substitutions, recipe ideas, or help with what you have in your fridge!',
+        ? `Hello! I'm here to assist with **${activeRecipe.title}** from ${activeRecipe.country}. Ask me for ingredient substitutions, technique tips, or say "Make this for 4" to scale servings.`
+        : 'Hello! I am your culinary assistant for Palate & Place. Ask me for authentic technique guidance, ingredient substitutions, recipe scaling, or what to cook with ingredients on hand!',
       handledLocally: true,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
@@ -240,7 +240,7 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
         {
           id: `err-${Date.now()}`,
           sender: 'chef',
-          text: 'I could not answer that right now. You can still ask me to adjust servings (e.g. "Make this for 4") or set a kitchen timer!',
+          text: 'I could not connect to the culinary server right now. You can still ask me to scale portions (e.g. "Make this for 4") or set a kitchen timer completely offline!',
           handledLocally: true,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
@@ -262,58 +262,58 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
     ? [
         `Make this for ${activeRecipe.servings === 2 ? 4 : 2}`,
         'What can I substitute in this?',
-        'How long does this take?',
-        'Is this easy for beginners?'
+        'How do I tell when it is done?',
+        'Is this dish spicy?'
       ]
     : [
-        'I have chicken, rice and onions',
+        'What can I cook with chicken and rice?',
         'Convert 180°C to Fahrenheit',
-        'Set a 20-minute timer',
-        'What can I use instead of buttermilk?'
+        'Set a 15-minute timer',
+        'What can I use instead of heavy cream?'
       ];
 
   return (
     <div 
       onClick={onClose}
-      className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-200"
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-full sm:max-w-lg bg-stone-950 border-l border-stone-800 shadow-2xl flex flex-col h-[100dvh] max-h-[100dvh] animate-in slide-in-from-right duration-200 overflow-x-hidden overflow-y-hidden"
+        className="relative w-full max-w-full sm:max-w-md md:max-w-lg bg-[#FBF9F5] border-l border-[#E8E1D7] shadow-2xl flex flex-col h-[100dvh] max-h-[100dvh] animate-in slide-in-from-right duration-200 overflow-x-hidden overflow-y-hidden"
       >
         
-        {/* Drawer Header - Simple, Warm English */}
-        <div className="p-4 sm:p-5 border-b border-stone-800 bg-stone-900/60 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-stone-950 shadow-lg shadow-amber-500/20 shrink-0">
-              <ChefHat className="w-5 h-5" />
+        {/* Drawer Header */}
+        <div className="p-4 sm:p-5 border-b border-[#E8E1D7] bg-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#231B15] flex items-center justify-center text-[#FBF9F5] shadow-sm shrink-0">
+              <ChefHat className="w-5 h-5 text-[#E8DAB7]" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="font-serif font-bold text-base text-stone-100">
-                  Kitchen Chef Assistant
+                <h3 className="font-serif font-bold text-base text-[#231B15] truncate">
+                  AI Culinary Mentor
                 </h3>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  Ready to Help
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#F2F5EC] text-[#5C6B38] border border-[#D5DEBF] shrink-0">
+                  Ready
                 </span>
               </div>
-              <p className="text-xs text-stone-400 truncate max-w-[200px] sm:max-w-none">
-                {activeRecipe ? `Helping with: ${activeRecipe.title}` : 'Ask any cooking question'}
+              <p className="text-xs text-[#8E8277] truncate">
+                {activeRecipe ? `Guiding: ${activeRecipe.title}` : 'Authentic Global Guidance'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
             <button
               onClick={() => setMessages([messages[0]])}
-              className="p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-              title="Clear chat and start over"
+              className="p-2 rounded-lg text-[#8E8277] hover:text-[#231B15] hover:bg-[#F4F0E8] transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+              title="Reset conversation"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="p-2 rounded-lg text-[#8E8277] hover:text-[#231B15] hover:bg-[#F4F0E8] transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
               aria-label="Close assistant"
             >
               <X className="w-5 h-5" />
@@ -321,15 +321,15 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
           </div>
         </div>
 
-        {/* Question Counter Banner in Simple English */}
-        <div className="px-4 py-2 bg-stone-900/40 border-b border-stone-800/80 flex items-center justify-between text-xs shrink-0">
-          <div className="flex items-center gap-1.5 text-stone-300">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        {/* Question Allowance Strip */}
+        <div className="px-4 py-2 bg-[#F7F4EE] border-b border-[#E8E1D7] flex items-center justify-between text-xs shrink-0">
+          <div className="flex items-center gap-1.5 text-[#5E5248]">
+            <Sparkles className="w-3.5 h-3.5 text-[#C85A32]" />
             <span>
               {isPremiumUser ? (
-                <><strong>{remainingMonthly}</strong> chef questions left this month</>
+                <><strong>{remainingMonthly}</strong> mentor questions remaining this month</>
               ) : (
-                <>Free trial: <strong>{remainingMonthly} of 5</strong> questions left</>
+                <>Free starter: <strong>{remainingMonthly} of 5</strong> questions remaining</>
               )}
             </span>
           </div>
@@ -337,31 +337,31 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
           {!isPremiumUser ? (
             <button
               onClick={onOpenUnlockModal}
-              className="text-amber-400 hover:underline font-semibold"
+              className="text-[#C85A32] hover:underline font-semibold text-xs"
             >
-              Unlock Unlimited Questions
+              Unlock 100/mo
             </button>
           ) : (
-            <span className="text-[11px] text-emerald-400 font-medium">World Pass Active</span>
+            <span className="text-[11px] text-[#5C6B38] font-medium">World Pass</span>
           )}
         </div>
 
-        {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-3.5 sm:p-5 space-y-4 touch-scroll w-full max-w-full overflow-x-hidden">
+        {/* Messages Scroll Area with Absolute Mobile Wrap Protection */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3.5 sm:p-5 space-y-4 touch-scroll w-full max-w-full overflow-x-hidden min-w-0">
           {messages.map((msg) => (
             <div
               key={msg.id}
               className={`flex flex-col w-full max-w-full min-w-0 ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[92%] sm:max-w-[85%] rounded-2xl p-3.5 sm:p-4 text-xs sm:text-sm leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] overflow-x-hidden ${
+                className={`max-w-[92%] sm:max-w-[85%] rounded-xl p-3.5 sm:p-4 text-xs sm:text-sm leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] overflow-x-hidden ${
                   msg.sender === 'user'
-                    ? 'bg-amber-500 text-stone-950 font-medium rounded-tr-sm shadow-md'
-                    : 'bg-stone-900 border border-stone-800 text-stone-200 rounded-tl-sm shadow-md'
+                    ? 'bg-[#231B15] text-[#FBF9F5] font-normal rounded-tr-sm shadow-sm'
+                    : 'bg-white border border-[#E8E1D7] text-[#231B15] rounded-tl-sm shadow-sm'
                 }`}
               >
                 {msg.title && (
-                  <p className="font-serif font-bold text-amber-400 text-sm mb-1.5 flex items-center gap-1.5 break-words [overflow-wrap:anywhere]">
+                  <p className="font-serif font-bold text-[#C85A32] text-sm mb-1.5 flex items-center gap-1.5 break-words [overflow-wrap:anywhere]">
                     <Sparkles className="w-3.5 h-3.5 shrink-0" />
                     <span>{msg.title}</span>
                   </p>
@@ -371,25 +371,24 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
                   {renderFormattedChefMessage(msg.text, msg.sender === 'user')}
                 </div>
 
-                {/* Friendly tag for instant offline tips */}
                 {msg.sender === 'chef' && msg.handledLocally && (
-                  <div className="mt-2.5 pt-2 border-t border-stone-800 flex items-center gap-1.5 text-[11px] text-amber-400/90 font-medium">
-                    <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>Quick tip • Free (doesn't count against your questions)</span>
+                  <div className="mt-2.5 pt-2 border-t border-[#E8E1D7] flex items-center gap-1.5 text-[11px] text-[#5C6B38] font-medium">
+                    <Zap className="w-3.5 h-3.5 text-[#5C6B38] shrink-0" />
+                    <span>Instant kitchen assistance · Ready offline</span>
                   </div>
                 )}
               </div>
 
-              <span className="text-[10px] text-stone-500 mt-1 px-1">
+              <span className="text-[10px] text-[#8E8277] mt-1 px-1">
                 {msg.timestamp}
               </span>
             </div>
           ))}
 
           {isThinking && (
-            <div className="flex items-center gap-2 p-3 rounded-2xl bg-stone-900/80 border border-stone-800 text-xs text-stone-300 w-fit">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-              <span>Chef is writing advice for you...</span>
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-white border border-[#E8E1D7] text-xs text-[#5E5248] w-fit shadow-sm">
+              <Sparkles className="w-3.5 h-3.5 text-[#C85A32] animate-spin" />
+              <span>Chef is preparing authentic guidance...</span>
             </div>
           )}
 
@@ -397,12 +396,12 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
         </div>
 
         {/* Quick Suggestion Chips */}
-        <div className="p-3 border-t border-stone-800 bg-stone-900/30 overflow-x-auto scrollbar-none touch-scroll flex items-center gap-2 shrink-0">
+        <div className="p-3 border-t border-[#E8E1D7] bg-[#F7F4EE] overflow-x-auto scrollbar-none touch-scroll flex items-center gap-2 shrink-0">
           {quickPrompts.map((prompt, i) => (
             <button
               key={i}
               onClick={() => handleSend(prompt)}
-              className="text-xs px-3.5 py-2 rounded-full bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-800 whitespace-nowrap transition-colors min-h-[36px]"
+              className="text-xs px-3.5 py-1.5 rounded-lg bg-white hover:bg-[#F4F0E8] text-[#5E5248] border border-[#E8E1D7] whitespace-nowrap transition-colors shadow-sm min-h-[34px]"
             >
               {prompt}
             </button>
@@ -410,7 +409,7 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
         </div>
 
         {/* Input Bar */}
-        <div className="p-4 border-t border-stone-800 bg-stone-950 shrink-0 pb-[max(env(safe-area-inset-bottom),1rem)]">
+        <div className="p-4 border-t border-[#E8E1D7] bg-white shrink-0 pb-[max(env(safe-area-inset-bottom),1rem)]">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -423,14 +422,14 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={activeRecipe ? `Ask about cooking ${activeRecipe.title}...` : 'Ask any cooking question...'}
-              className="flex-1 py-3 px-4 rounded-xl bg-stone-900 border border-stone-800 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-500 min-h-[44px]"
+              className="flex-1 py-2.5 px-3.5 rounded-xl bg-[#FBF9F5] border border-[#E8E1D7] text-xs sm:text-sm text-[#231B15] placeholder-[#8E8277] focus:outline-none focus:border-[#231B15] min-h-[44px]"
             />
             <button
               type="submit"
               disabled={!inputValue.trim() || isThinking}
-              className="p-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 font-bold transition-all shadow-lg min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="p-2.5 rounded-xl bg-[#231B15] hover:bg-[#3D322A] disabled:opacity-40 text-[#FBF9F5] font-medium transition-all shadow-sm min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-4 h-4 text-[#E8DAB7]" />
             </button>
           </form>
         </div>

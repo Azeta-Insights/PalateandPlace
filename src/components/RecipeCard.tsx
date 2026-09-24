@@ -4,20 +4,20 @@ import { Recipe } from '../types/recipe';
 
 interface RecipeCardProps {
   recipe: Recipe;
-  isFavorite: boolean;
-  isDownloaded: boolean;
-  isPremiumUser: boolean;
+  isFavorite?: boolean;
+  isDownloaded?: boolean;
+  isPremiumUser?: boolean;
   onSelect: (recipe: Recipe) => void;
-  onToggleFavorite: (recipeId: string, e: React.MouseEvent) => void;
-  onDownload: (recipeId: string, e: React.MouseEvent) => void;
-  onOpenUnlockModal: () => void;
+  onToggleFavorite?: (recipeId: string, e?: React.MouseEvent) => void;
+  onDownload?: (recipeId: string, e?: React.MouseEvent) => void;
+  onOpenUnlockModal?: () => void;
 }
 
 export const RecipeCard: React.FC<RecipeCardProps> = ({
   recipe,
-  isFavorite,
-  isDownloaded,
-  isPremiumUser,
+  isFavorite = false,
+  isDownloaded = false,
+  isPremiumUser = false,
   onSelect,
   onToggleFavorite,
   onDownload,
@@ -27,7 +27,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
   const isOfflineReady = recipe.isStarter || isDownloaded;
 
   const handleClick = () => {
-    if (isLocked) {
+    if (isLocked && onOpenUnlockModal) {
       onOpenUnlockModal();
     } else {
       onSelect(recipe);
@@ -35,131 +35,139 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
   };
 
   return (
-    <div
+    <article
       onClick={handleClick}
-      className={`group relative rounded-3xl bg-stone-900/90 border transition-all duration-300 overflow-hidden cursor-pointer flex flex-col ${
+      className={`group relative bg-[#FFFDF8] rounded-xl border transition-all duration-200 overflow-hidden cursor-pointer flex flex-col ${
         isLocked
-          ? 'border-stone-800/80 hover:border-amber-500/40 opacity-90'
-          : 'border-stone-800/80 hover:border-amber-500/60 hover:shadow-xl hover:shadow-amber-500/10 hover:-translate-y-1'
+          ? 'border-[#E6DEC8] hover:border-[#B85C3A]/40 shadow-xs'
+          : 'border-[#E6DEC8] hover:border-[#29231E]/40 hover:shadow-md hover:-translate-y-0.5 shadow-xs'
       }`}
     >
-      {/* Recipe Photo Header */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-950">
+      {/* Editorial Food Photography */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#FAF5EC]">
         <img
           src={recipe.image}
           alt={recipe.title}
           loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 ease-out"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/20 to-black/30" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
-        {/* Top Badges */}
-        <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
-          {/* Country Flag & Continent Pill */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-950/80 backdrop-blur-md border border-stone-800/80 text-[11px] font-semibold text-stone-200 pointer-events-auto">
-            <span className="font-mono text-amber-400 font-bold">{recipe.countryCode}</span>
-            <span>•</span>
-            <span className="truncate max-w-[100px]">{recipe.country}</span>
+        {/* Top Floating Controls */}
+        <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none">
+          {/* Country Tag */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#FFFDF8]/90 backdrop-blur-md border border-[#E6DEC8] text-[11px] font-medium text-[#29231E] pointer-events-auto shadow-xs font-sans">
+            <span className="font-mono text-[#B85C3A] font-semibold">{recipe.countryCode}</span>
+            <span className="text-[#D3C7B5]">·</span>
+            <span className="truncate max-w-[120px]">{recipe.country}</span>
           </div>
 
-          {/* Action Buttons: Favorite & Download */}
+          {/* Quick Actions (Download & Favorite) */}
           <div className="flex items-center gap-1.5 pointer-events-auto">
-            {/* Download status / button */}
-            {!isLocked && (
+            {!isLocked && onDownload && (
               <button
-                onClick={(e) => onDownload(recipe.recipeId, e)}
-                title={isOfflineReady ? 'Available Offline' : 'Download for Offline Cooking'}
-                className={`min-w-[40px] min-h-[40px] p-2 flex items-center justify-center rounded-full backdrop-blur-md transition-all active:scale-95 ${
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDownload(recipe.recipeId, e);
+                }}
+                title={isOfflineReady ? 'Saved for Offline Cooking' : 'Download for Offline Cooking'}
+                className={`min-w-[34px] min-h-[34px] p-1.5 flex items-center justify-center rounded-md backdrop-blur-md transition-all active:scale-95 ${
                   isOfflineReady
-                    ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-700/50'
-                    : 'bg-stone-950/70 hover:bg-stone-900 text-stone-300 border border-stone-800'
+                    ? 'bg-[#F2F5EC] text-[#68745D] border border-[#D5DEBF]'
+                    : 'bg-[#FFFDF8]/90 hover:bg-white text-[#71675D] border border-[#E6DEC8]'
                 }`}
               >
-                {isOfflineReady ? <CheckCircle2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                {isOfflineReady ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
               </button>
             )}
 
-            {/* Favorite heart */}
-            <button
-              onClick={(e) => onToggleFavorite(recipe.recipeId, e)}
-              title={isFavorite ? 'Remove from favorites' : 'Save to favorites'}
-              className={`min-w-[40px] min-h-[40px] p-2 flex items-center justify-center rounded-full backdrop-blur-md transition-all active:scale-95 ${
-                isFavorite
-                  ? 'bg-rose-950/80 text-rose-400 border border-rose-700/50'
-                  : 'bg-stone-950/70 hover:bg-stone-900 text-stone-300 border border-stone-800'
-              }`}
-            >
-              <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
-            </button>
+            {onToggleFavorite && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(recipe.recipeId, e);
+                }}
+                title={isFavorite ? 'Remove from favorites' : 'Save recipe'}
+                className={`min-w-[34px] min-h-[34px] p-1.5 flex items-center justify-center rounded-md backdrop-blur-md transition-all active:scale-95 ${
+                  isFavorite
+                    ? 'bg-[#FDF2ED] text-[#B85C3A] border border-[#F4CEBE]'
+                    : 'bg-[#FFFDF8]/90 hover:bg-white text-[#71675D] border border-[#E6DEC8]'
+                }`}
+              >
+                <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'fill-[#B85C3A] text-[#B85C3A]' : ''}`} />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Lock Overlay or Starter Badge */}
-        <div className="absolute bottom-3 inset-x-3 flex items-center justify-between pointer-events-none">
+        {/* Bottom Image Overlay */}
+        <div className="absolute bottom-2.5 inset-x-2.5 flex items-center justify-between text-white pointer-events-none">
           {recipe.isStarter ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/90 text-stone-950 shadow-md">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#68745D]/90 text-[10px] font-medium text-white shadow-xs backdrop-blur-xs font-sans">
               <ChefHat className="w-3 h-3" />
-              Free Starter
+              <span>Starter Dish</span>
             </span>
           ) : isLocked ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-stone-900/95 text-amber-400 border border-amber-500/40 shadow-md">
-              <Lock className="w-3 h-3" />
-              World Unlock
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#29231E]/90 text-[#D3C7B5] border border-[#B18A58]/40 text-[10px] font-medium shadow-xs backdrop-blur-xs font-sans">
+              <Lock className="w-3 h-3 text-[#B18A58]" />
+              <span>World Pass</span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-stone-900/80 text-stone-300">
+            <span className="text-[11px] font-medium text-white/90 drop-shadow-xs font-sans">
               {recipe.mealType}
             </span>
           )}
 
           {recipe.spiceLevel > 0 && (
-            <div className="flex items-center gap-0.5 text-amber-500" title={`Spice Level: ${recipe.spiceLevel}/5`}>
+            <div className="flex items-center gap-0.5 text-white drop-shadow-xs" title={`Spice Level: ${recipe.spiceLevel}/5`}>
               {Array.from({ length: Math.min(3, recipe.spiceLevel) }).map((_, i) => (
-                <Flame key={i} className="w-3 h-3 fill-amber-500" />
+                <Flame key={i} className="w-3 h-3 fill-[#B85C3A] text-[#B85C3A]" />
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Card Details */}
+      {/* Recipe Text & Details */}
       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
         <div>
-          <h3 className="font-serif text-base sm:text-lg font-bold text-stone-100 group-hover:text-amber-400 transition-colors line-clamp-1">
-            {recipe.title}
-          </h3>
+          <div className="flex items-baseline justify-between gap-2">
+            <h3 className="font-serif text-base sm:text-lg font-bold text-[#29231E] group-hover:text-[#B85C3A] transition-colors line-clamp-1">
+              {recipe.title}
+            </h3>
+          </div>
+
           {recipe.alternateName && (
-            <p className="text-xs text-stone-400 italic line-clamp-1 mt-0.5">
+            <p className="font-serif text-xs sm:text-sm text-[#71675D] italic line-clamp-1 mt-0.5">
               {recipe.alternateName}
             </p>
           )}
 
-          <p className="text-xs text-stone-300 line-clamp-2 mt-2 leading-relaxed">
+          <p className="text-xs text-[#71675D] line-clamp-2 mt-2 leading-relaxed font-sans">
             {recipe.description}
           </p>
         </div>
 
-        {/* Meta info & Dietary tags */}
-        <div className="mt-4 pt-3 border-t border-stone-800/80 flex items-center justify-between text-xs text-stone-400">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-stone-400" />
-              {recipe.totalTime}m
-            </span>
-            <span className="font-medium text-stone-400">
-              {recipe.difficulty}
-            </span>
+        {/* Metadata Footer */}
+        <div className="mt-4 pt-3 border-t border-[#E6DEC8] flex items-center justify-between text-xs text-[#71675D] font-sans">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-[#29231E]">{recipe.totalTime} mins</span>
+            <span>·</span>
+            <span>{recipe.difficulty}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-hidden">
+          <div className="flex items-center gap-1.5 truncate max-w-[140px]">
             {recipe.dietaryTags.slice(0, 1).map(tag => (
-              <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-stone-800 text-stone-300 font-medium whitespace-nowrap">
+              <span key={tag} className="text-[11px] text-[#68745D] font-medium truncate">
                 {tag}
               </span>
             ))}
+            {recipe.isStarter && (
+              <span className="text-[10px] text-[#71675D] font-mono">Offline</span>
+            )}
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 };
