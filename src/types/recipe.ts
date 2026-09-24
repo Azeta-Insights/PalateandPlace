@@ -114,9 +114,12 @@ export interface ShoppingItem {
 
 export interface UserEntitlement {
   tier: 'free' | 'premium' | 'test_premium';
-  source: 'default' | 'purchase' | 'test' | 'dev';
+  source: 'default' | 'purchase' | 'test' | 'dev' | 'direct_grant' | 'reviewer_pass';
   unlockedAt?: string;
   paystackReference?: string;
+  validUntil?: string;
+  grantedAt?: string;
+  revokedAt?: string;
 }
 
 export interface AIUsage {

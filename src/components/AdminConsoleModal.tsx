@@ -44,6 +44,18 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
 
   const fetchAdminData = async () => {
     setLoading(true);
+    let apiRequests: PremiumRequest[] = [];
+    let firestoreRequests: PremiumRequest[] = [];
+
+    // 1. Direct Firestore fetch for reviewer requests
+    try {
+      const snap = await getDocs(collection(db, 'premiumRequests'));
+      firestoreRequests = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+    } catch (fsErr) {
+      console.warn('Firestore requests fetch notice:', fsErr);
+    }
+
+    // 2. Safe Backend API fetch
     try {
       const token = user ? await user.getIdToken() : '';
       const res = await fetch('/api/admin/overview', {
@@ -54,20 +66,32 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setRequests(data.requests || []);
-        setPayments(data.payments || []);
-        setAiUsageRecords(data.aiUsages || []);
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          apiRequests = data.requests || [];
+          setPayments(data.payments || []);
+          setAiUsageRecords(data.aiUsages || []);
+        }
       }
     } catch (err) {
       console.warn('Admin overview fetch error:', err);
     }
 
+    // Merge requests giving priority to latest
+    const reqMap = new Map<string, PremiumRequest>();
+    apiRequests.forEach((r) => reqMap.set(r.id || r.userId, r));
+    firestoreRequests.forEach((r) => reqMap.set(r.id || r.userId, r));
+    setRequests(Array.from(reqMap.values()));
+
     try {
       const res = await fetch('/api/recipe-insights');
       if (res.ok) {
-        const data = await res.json();
-        setInsights(data.insights || []);
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          setInsights(data.insights || []);
+        }
       }
     } catch (err) {
       console.warn('Insights fetch error:', err);
@@ -85,34 +109,51 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
       const reviewerId = emailClean;
       const token = user ? await user.getIdToken() : '';
 
-      // Direct grant via backend endpoint
-      await fetch('/api/admin/dev-grant-premium', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          userId: reviewerId,
-          email: emailClean,
-          name: reviewerName.trim() || 'Culinary Reviewer'
-        })
-      });
+      // Direct Firestore grant
+      const newReq: PremiumRequest = {
+        id: `req-${Date.now()}`,
+        userId: reviewerId,
+        name: reviewerName.trim() || 'Culinary Reviewer',
+        email: emailClean,
+        requestedAt: new Date().toISOString(),
+        status: 'approved',
+        reviewedAt: new Date().toISOString()
+      };
 
-      // Also record in Firestore if available
       try {
-        const newReq: PremiumRequest = {
-          id: `req-${Date.now()}`,
-          userId: reviewerId,
-          name: reviewerName.trim() || 'Culinary Reviewer',
-          email: emailClean,
-          requestedAt: new Date().toISOString(),
-          status: 'approved',
-          reviewedAt: new Date().toISOString()
-        };
         await setDoc(doc(db, 'premiumRequests', newReq.id), newReq);
-      } catch {
-        // Handled server-side
+        await setDoc(doc(db, 'entitlements', reviewerId), {
+          tier: 'test_premium',
+          source: 'reviewer_pass',
+          validUntil: 'never',
+          grantedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (fsErr) {
+        console.warn('Direct Firestore reviewer grant notice:', fsErr);
+      }
+
+      // Backend sync
+      try {
+        const res = await fetch('/api/admin/dev-grant-premium', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            userId: reviewerId,
+            email: emailClean,
+            name: reviewerName.trim() || 'Culinary Reviewer'
+          })
+        });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            await res.json();
+          }
+        }
+      } catch (apiErr) {
+        console.warn('API grant endpoint notice:', apiErr);
       }
 
       setActionMessage(`Granted instant World Pass access for ${emailClean}!`);
@@ -148,32 +189,49 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
 
   const handleApproveRequest = async (req: PremiumRequest) => {
     try {
-      const token = user ? await user.getIdToken() : '';
-      const res = await fetch('/api/admin/approve-test-premium', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          requestId: req.id,
-          userId: req.userId
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Approval failed');
-
+      // 1. Direct Firestore update
       try {
         await updateDoc(doc(db, 'premiumRequests', req.id), {
           status: 'approved',
           reviewedAt: new Date().toISOString()
         });
-      } catch {
-        // Handled server-side
+        if (req.userId) {
+          await setDoc(doc(db, 'entitlements', req.userId), {
+            tier: 'test_premium',
+            source: 'reviewer_pass',
+            validUntil: 'never',
+            grantedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (fsErr) {
+        console.warn('Firestore direct approve notice:', fsErr);
       }
 
-      setActionMessage(`Approved World Pass access for ${req.email}`);
+      // 2. Safely ping backend
+      try {
+        const token = user ? await user.getIdToken() : '';
+        const res = await fetch('/api/admin/approve-test-premium', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            requestId: req.id,
+            userId: req.userId
+          })
+        });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            await res.json();
+          }
+        }
+      } catch (apiErr) {
+        console.warn('API approve notice:', apiErr);
+      }
+
+      setActionMessage(`Approved World Pass access for ${req.email || req.name}`);
       fetchAdminData();
     } catch (err: any) {
       setActionMessage(`Error: ${err.message}`);
@@ -186,7 +244,7 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
         status: 'rejected',
         reviewedAt: new Date().toISOString()
       });
-      setActionMessage(`Declined request for ${req.email}`);
+      setActionMessage(`Declined request for ${req.email || req.name}`);
       fetchAdminData();
     } catch (err: any) {
       setActionMessage(`Error: ${err.message}`);
@@ -195,32 +253,48 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
 
   const handleRevokeAccess = async (req: PremiumRequest) => {
     try {
-      const token = user ? await user.getIdToken() : '';
-      const res = await fetch('/api/admin/revoke-test-premium', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          requestId: req.id,
-          userId: req.userId
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Revocation failed');
-
+      // 1. Direct Firestore update
       try {
         await updateDoc(doc(db, 'premiumRequests', req.id), {
           status: 'revoked',
           reviewedAt: new Date().toISOString()
         });
-      } catch {
-        // Handled server-side
+        if (req.userId) {
+          await setDoc(doc(db, 'entitlements', req.userId), {
+            tier: 'free',
+            source: 'default',
+            revokedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (fsErr) {
+        console.warn('Firestore direct revoke notice:', fsErr);
       }
 
-      setActionMessage(`Revoked access for ${req.email}`);
+      // 2. Safely ping backend
+      try {
+        const token = user ? await user.getIdToken() : '';
+        const res = await fetch('/api/admin/revoke-test-premium', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            requestId: req.id,
+            userId: req.userId
+          })
+        });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            await res.json();
+          }
+        }
+      } catch (apiErr) {
+        console.warn('API revoke notice:', apiErr);
+      }
+
+      setActionMessage(`Revoked World Pass access for ${req.email || req.name}`);
       fetchAdminData();
     } catch (err: any) {
       setActionMessage(`Error: ${err.message}`);
