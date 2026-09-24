@@ -5,6 +5,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, runTransaction } from 'firebase/firestore';
 import { adminAuth } from './server/firebaseAdmin';
 import firebaseAppletConfig from './firebase-applet-config.json';
+import { firebaseConfig, databaseId } from './src/firebase/config';
 import {
   getFullPremiumRecipeById,
   getFullPremiumRecipesBatch,
@@ -13,8 +14,10 @@ import {
 import { ALL_STARTER_RECIPES } from './src/data/recipes';
 
 // Initialize Firebase client for Firestore rate limiting
-const fbApp = getApps().length > 0 ? getApp() : initializeApp(firebaseAppletConfig);
-const firestoreDb = getFirestore(fbApp, firebaseAppletConfig.firestoreDatabaseId);
+const fbApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const firestoreDb = (databaseId && databaseId !== '(default)')
+  ? getFirestore(fbApp, databaseId)
+  : getFirestore(fbApp);
 
 // Initialize Gemini Client safely using server-side env var
 const geminiApiKey = process.env.GEMINI_API_KEY || '';

@@ -22,7 +22,13 @@ import {
   Check,
   Camera,
   Trash2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Volume2,
+  VolumeX,
+  List,
+  ChevronLeft,
+  ChevronRight,
+  Lock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Recipe, Ingredient } from '../types/recipe';
@@ -117,6 +123,34 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   // Distraction-free Cooking Mode
   const [isCookingMode, setIsCookingMode] = useState(false);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
+  const [showIngredientsInCooking, setShowIngredientsInCooking] = useState(false);
+  const [isSpeakingStep, setIsSpeakingStep] = useState(false);
+
+  // Stop speech when step or mode changes
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [activeStepIndex, isCookingMode]);
+
+  const toggleSpeakStep = (text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (isSpeakingStep) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingStep(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.onend = () => setIsSpeakingStep(false);
+    utterance.onerror = () => setIsSpeakingStep(false);
+    setIsSpeakingStep(true);
+    window.speechSynthesis.speak(utterance);
+  };
 
   // "I Cooked This" Completion Modal State
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -258,14 +292,52 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     }
   };
 
+  // Keyboard navigation for Cooking Mode
+  useEffect(() => {
+    if (!isCookingMode) return;
+    const handleKeyNav = (e: KeyboardEvent) => {
+      const totalSteps = recipe.preparationSteps?.length || 0;
+      if (totalSteps === 0) return;
+
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        const currentStep = recipe.preparationSteps[activeStepIndex];
+        const stepNum = currentStep?.stepNumber ?? (activeStepIndex + 1);
+        toggleCompleteStep(stepNum);
+        if (activeStepIndex < totalSteps - 1) {
+          setActiveStepIndex(prev => prev + 1);
+        } else {
+          setIsCookingMode(false);
+          setShowCompletionModal(true);
+        }
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setActiveStepIndex(prev => Math.max(0, prev - 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyNav);
+    return () => window.removeEventListener('keydown', handleKeyNav);
+  }, [isCookingMode, activeStepIndex, recipe.preparationSteps]);
+
   // FULLSCREEN DISTRACTION-FREE COOKING MODE (Exclusively rendered to eliminate background bleeding)
   if (isCookingMode) {
-    const currentStep = recipe.preparationSteps[activeStepIndex];
+    const steps = recipe.preparationSteps || [];
+    const totalSteps = steps.length;
+    const currentStep = steps[activeStepIndex];
+    const safeStepNumber = currentStep?.stepNumber ?? (activeStepIndex + 1);
+
+    // Auto-detect timer from instruction if timerMinutes not set
+    const autoTimerMinutes = currentStep?.timerMinutes || (() => {
+      if (!currentStep?.instruction) return undefined;
+      const match = currentStep.instruction.match(/(\d+)\s*(?:minutes|minute|mins|min)\b/i);
+      return match ? parseInt(match[1], 10) : undefined;
+    })();
+
     return (
       <div className="fixed inset-0 z-50 bg-stone-950 text-stone-100 flex flex-col p-4 sm:p-8 animate-in fade-in duration-150 overflow-hidden select-none">
-        {/* Top bar with Step info, Timer and Close */}
-        <div className="flex items-center justify-between pb-4 border-b border-stone-800 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-3 truncate">
+        {/* Top bar with Step info, Ingredients toggle, TTS and Close */}
+        <div className="flex items-center justify-between pb-4 border-b border-stone-800 shrink-0 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 truncate min-w-0">
             <span className="text-[11px] px-2.5 py-1 rounded-full bg-amber-500 text-stone-950 font-bold uppercase tracking-wider shrink-0">
               Cooking Mode
             </span>
@@ -273,65 +345,178 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               {recipe.title}
             </h3>
           </div>
-          <button
-            onClick={() => setIsCookingMode(false)}
-            aria-label="Exit cooking mode"
-            className="p-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 ml-2"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Quick Ingredients Peek */}
+            <button
+              onClick={() => setShowIngredientsInCooking(!showIngredientsInCooking)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                showIngredientsInCooking 
+                  ? 'bg-amber-500 text-stone-950 border-amber-500 font-bold' 
+                  : 'bg-stone-900 hover:bg-stone-800 text-stone-300 border-stone-800'
+              }`}
+              title="Peek at recipe ingredients"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Ingredients</span>
+            </button>
+
+            {/* Read Step Aloud (Speech Synthesis) */}
+            {currentStep?.instruction && (
+              <button
+                onClick={() => toggleSpeakStep(currentStep.instruction)}
+                className={`p-2 rounded-xl border transition-all ${
+                  isSpeakingStep
+                    ? 'bg-amber-500 text-stone-950 border-amber-500 animate-pulse'
+                    : 'bg-stone-900 hover:bg-stone-800 text-stone-300 border-stone-800'
+                }`}
+                title={isSpeakingStep ? 'Stop reading' : 'Read step aloud hands-free'}
+              >
+                {isSpeakingStep ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                setIsCookingMode(false);
+                setShowIngredientsInCooking(false);
+              }}
+              aria-label="Exit cooking mode"
+              className="p-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 ml-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Big Step Card */}
-        <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full py-6 space-y-6 overflow-y-auto">
-          <div className="flex items-center justify-between text-amber-400 font-mono text-xs sm:text-sm">
-            <span>STEP {activeStepIndex + 1} OF {recipe.preparationSteps.length}</span>
-            {currentStep?.timerMinutes && (
-              <button
-                onClick={() => handleStartStepTimer(currentStep.timerMinutes!, `Step ${activeStepIndex + 1}`)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold text-xs"
-              >
-                <Clock className="w-4 h-4" />
-                <span>Start {currentStep.timerMinutes}m Timer</span>
-              </button>
+        {/* Step Progress Line */}
+        {totalSteps > 0 && (
+          <div className="w-full bg-stone-900 h-1 shrink-0 mt-3 rounded-full overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-300"
+              style={{ width: `${((activeStepIndex + 1) / totalSteps) * 100}%` }}
+            />
+          </div>
+        )}
+
+        {/* Main Content Area (With optional split when ingredients drawer is open) */}
+        <div className="flex-1 flex flex-col md:flex-row gap-6 max-w-4xl mx-auto w-full py-4 overflow-hidden">
+          
+          {/* Main Step Display */}
+          <div className="flex-1 flex flex-col justify-center space-y-5 overflow-y-auto pr-1">
+            {totalSteps === 0 ? (
+              <div className="p-8 text-center space-y-4 max-w-md mx-auto">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
+                  {recipe.isPremium && !isPremiumUser ? <Lock className="w-7 h-7" /> : <ChefHat className="w-7 h-7" />}
+                </div>
+                <h4 className="font-serif text-xl font-bold text-stone-200">
+                  {recipe.isPremium && !isPremiumUser ? 'Premium Recipe' : 'Steps Loading...'}
+                </h4>
+                <p className="text-xs sm:text-sm text-stone-400 leading-relaxed">
+                  {recipe.isPremium && !isPremiumUser
+                    ? 'Unlock the complete World Kitchen collection with 300+ recipes and instant step-by-step cooking mode.'
+                    : 'Fetching complete culinary preparation instructions...'}
+                </p>
+                {recipe.isPremium && !isPremiumUser && onOpenUnlockModal && (
+                  <button
+                    onClick={() => {
+                      setIsCookingMode(false);
+                      onOpenUnlockModal();
+                    }}
+                    className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs shadow-xl"
+                  >
+                    Unlock World Kitchen (₦2,500)
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-amber-400 font-mono text-xs sm:text-sm">
+                  <span>STEP {activeStepIndex + 1} OF {totalSteps}</span>
+                  {autoTimerMinutes && (
+                    <button
+                      onClick={() => handleStartStepTimer(autoTimerMinutes, `Step ${activeStepIndex + 1}`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/50 hover:bg-amber-500/30 text-amber-300 font-bold text-xs transition-colors"
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span>Start {autoTimerMinutes}m Timer</span>
+                    </button>
+                  )}
+                </div>
+
+                <p className="font-serif text-xl sm:text-2xl md:text-3xl text-stone-100 leading-relaxed font-medium">
+                  {currentStep?.instruction || 'Follow recipe instructions.'}
+                </p>
+
+                {currentStep?.tip && (
+                  <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs sm:text-sm text-amber-300 flex items-start gap-3">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>{currentStep.tip}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          <p className="font-serif text-xl sm:text-3xl text-stone-100 leading-relaxed font-medium">
-            {currentStep?.instruction}
-          </p>
-
-          {currentStep?.tip && (
-            <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-800/40 text-xs sm:text-sm text-amber-300 flex items-start gap-3">
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>{currentStep.tip}</span>
+          {/* Quick Ingredients Sidebar (Drawer) */}
+          {showIngredientsInCooking && (
+            <div className="w-full md:w-80 bg-stone-900/90 border border-stone-800 rounded-2xl p-4 flex flex-col max-h-60 md:max-h-full overflow-hidden animate-in slide-in-from-right duration-200">
+              <div className="flex items-center justify-between pb-2 border-b border-stone-800 shrink-0">
+                <span className="text-xs font-bold text-stone-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <List className="w-3.5 h-3.5 text-amber-400" />
+                  Ingredients ({servings} servings)
+                </span>
+                <button
+                  onClick={() => setShowIngredientsInCooking(false)}
+                  className="text-stone-400 hover:text-stone-200 p-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1 space-y-1.5 pt-2 text-xs pr-1">
+                {recipe.ingredients.map((ing, idx) => (
+                  <div key={idx} className="flex items-baseline justify-between p-2 rounded-lg bg-stone-950/60 border border-stone-800/60">
+                    <span className="text-stone-300">{ing.name}</span>
+                    <span className="font-bold text-amber-400 font-mono ml-2 shrink-0">
+                      {formatScaledAmount(ing.amount, ing.unit)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
         {/* Step Controls */}
-        <div className="flex items-center justify-between max-w-2xl mx-auto w-full pt-4 border-t border-stone-800 gap-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] shrink-0">
+        <div className="flex items-center justify-between max-w-4xl mx-auto w-full pt-4 border-t border-stone-800 gap-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] shrink-0">
           <button
             disabled={activeStepIndex === 0}
             onClick={() => setActiveStepIndex(Math.max(0, activeStepIndex - 1))}
-            className="flex-1 sm:flex-none px-5 py-3 rounded-2xl bg-stone-900 disabled:opacity-30 hover:bg-stone-800 text-stone-200 font-bold text-xs sm:text-sm min-h-[48px]"
+            className="flex-1 sm:flex-none px-5 py-3 rounded-2xl bg-stone-900 disabled:opacity-30 hover:bg-stone-800 text-stone-200 font-bold text-xs sm:text-sm min-h-[48px] flex items-center justify-center gap-1.5"
           >
-            Previous Step
+            <ChevronLeft className="w-4 h-4" />
+            <span>Previous</span>
           </button>
 
+          <span className="hidden sm:inline text-xs text-stone-500 font-mono">
+            Use ← → keys to navigate
+          </span>
+
           <button
+            disabled={totalSteps === 0}
             onClick={() => {
-              toggleCompleteStep(currentStep.stepNumber);
-              if (activeStepIndex < recipe.preparationSteps.length - 1) {
+              toggleCompleteStep(safeStepNumber);
+              if (activeStepIndex < totalSteps - 1) {
                 setActiveStepIndex(activeStepIndex + 1);
               } else {
                 setIsCookingMode(false);
                 setShowCompletionModal(true);
               }
             }}
-            className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs sm:text-sm shadow-xl min-h-[48px]"
+            className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-stone-950 font-bold text-xs sm:text-sm shadow-xl min-h-[48px] flex items-center justify-center gap-1.5"
           >
-            {activeStepIndex === recipe.preparationSteps.length - 1 ? 'Finish & Stamp' : 'Next Step →'}
+            <span>{activeStepIndex === totalSteps - 1 ? 'Finish & Stamp' : 'Next Step'}</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
