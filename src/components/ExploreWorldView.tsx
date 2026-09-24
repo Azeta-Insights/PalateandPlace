@@ -81,6 +81,7 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
   // Exploration dimension state
   const [activeDimension, setActiveDimension] = useState<'continents' | 'countries' | 'cuisines' | 'meal_types' | 'dietary' | 'time_difficulty'>('continents');
+  const [selectedCollection, setSelectedCollection] = useState<'all' | 'starter' | 'premium'>('all');
   const [selectedContinent, setSelectedContinent] = useState<Continent | 'All'>('All');
   const [selectedCountry, setSelectedCountry] = useState<string>('All');
   const [selectedCuisine, setSelectedCuisine] = useState<string>('All');
@@ -123,6 +124,7 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
   // Reset all exploration filters
   const resetFilters = () => {
+    setSelectedCollection('all');
     setSelectedContinent('All');
     setSelectedCountry('All');
     setSelectedCuisine('All');
@@ -136,6 +138,7 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
   };
 
   const hasActiveFilters = 
+    selectedCollection !== 'all' ||
     selectedContinent !== 'All' || 
     selectedCountry !== 'All' || 
     selectedCuisine !== 'All' || 
@@ -149,6 +152,13 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
   // Smart Search & Dynamic Filtering
   const filteredRecipes = useMemo(() => {
     let pool = ALL_RECIPES;
+
+    // Collection filter (Starters vs World Pass)
+    if (selectedCollection === 'starter') {
+      pool = pool.filter(r => r.isStarter);
+    } else if (selectedCollection === 'premium') {
+      pool = pool.filter(r => r.isPremium);
+    }
 
     // Search query with offline / smart parser
     if (searchQuery.trim()) {
@@ -212,6 +222,7 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
 
     return sorted;
   }, [
+    selectedCollection,
     searchQuery,
     selectedContinent,
     selectedCountry,
@@ -324,6 +335,50 @@ export const ExploreWorldView: React.FC<ExploreWorldViewProps> = ({
               </button>
             </div>
           )}
+
+          {/* Quick Collection Segment Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-1.5 p-1 bg-[#F4F0E8] rounded-xl border border-[#E8E1D7]">
+              <button
+                onClick={() => setSelectedCollection('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedCollection === 'all'
+                    ? 'bg-white text-[#231B15] shadow-sm'
+                    : 'text-[#6E6258] hover:text-[#231B15]'
+                }`}
+              >
+                All Dishes (360)
+              </button>
+
+              <button
+                onClick={() => setSelectedCollection('starter')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  selectedCollection === 'starter'
+                    ? 'bg-[#5C6B38] text-white shadow-sm'
+                    : 'text-[#5C6B38] hover:bg-white/60'
+                }`}
+              >
+                <span>50 Free Starters</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/20 font-mono">Offline</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedCollection('premium')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  selectedCollection === 'premium'
+                    ? 'bg-[#C85A32] text-white shadow-sm'
+                    : 'text-[#C85A32] hover:bg-white/60'
+                }`}
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>310+ World Pass Library</span>
+              </button>
+            </div>
+
+            <div className="text-xs text-[#8E8277] font-medium hidden sm:block">
+              Showing <strong className="text-[#231B15] font-semibold">{filteredRecipes.length}</strong> matching dishes
+            </div>
+          </div>
         </div>
 
         {/* Dimensional Navigation Tabs */}
