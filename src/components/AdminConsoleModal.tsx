@@ -81,22 +81,46 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
     if (!reviewerEmail.trim()) return;
     setIsAddingReviewer(true);
     try {
-      const reviewerId = `reviewer-${Date.now()}`;
-      const newReq: PremiumRequest = {
-        id: `req-${reviewerId}`,
-        userId: reviewerId,
-        name: reviewerName.trim() || 'Culinary Reviewer',
-        email: reviewerEmail.trim().toLowerCase(),
-        requestedAt: new Date().toISOString(),
-        status: 'pending'
-      };
-      await setDoc(doc(db, 'premiumRequests', newReq.id), newReq);
-      setActionMessage(`Added request for ${reviewerEmail}. Click Approve to grant World Pass.`);
+      const emailClean = reviewerEmail.trim().toLowerCase();
+      const reviewerId = emailClean;
+      const token = user ? await user.getIdToken() : '';
+
+      // Direct grant via backend endpoint
+      await fetch('/api/admin/dev-grant-premium', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          userId: reviewerId,
+          email: emailClean,
+          name: reviewerName.trim() || 'Culinary Reviewer'
+        })
+      });
+
+      // Also record in Firestore if available
+      try {
+        const newReq: PremiumRequest = {
+          id: `req-${Date.now()}`,
+          userId: reviewerId,
+          name: reviewerName.trim() || 'Culinary Reviewer',
+          email: emailClean,
+          requestedAt: new Date().toISOString(),
+          status: 'approved',
+          reviewedAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'premiumRequests', newReq.id), newReq);
+      } catch {
+        // Handled server-side
+      }
+
+      setActionMessage(`Granted instant World Pass access for ${emailClean}!`);
       setReviewerEmail('');
       setReviewerName('');
       fetchAdminData();
     } catch (err: any) {
-      setActionMessage(`Error: ${err.message}`);
+      setActionMessage(`Error granting access: ${err.message}`);
     } finally {
       setIsAddingReviewer(false);
     }

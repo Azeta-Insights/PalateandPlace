@@ -202,9 +202,12 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   }, [onClose, isCookingMode, recipe.recipeId]);
 
   // Unit conversion helper
-  const formatScaledAmount = (amount: number, unit: string) => {
+  const formatScaledAmount = (amount?: number, unit?: string) => {
+    if (amount === undefined || amount === null || isNaN(amount) || amount <= 0) {
+      return unit && unit !== 'portion' ? unit : '';
+    }
     let scaled = amount * scalingFactor;
-    let finalUnit = unit;
+    let finalUnit = unit || '';
 
     if (unitSystem === 'imperial') {
       if (unit === 'g') {
@@ -218,7 +221,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     }
 
     const rounded = Math.round(scaled * 10) / 10;
-    return `${rounded} ${finalUnit}`;
+    return finalUnit ? `${rounded} ${finalUnit}` : `${rounded}`;
   };
 
   const toggleCheckIngredient = (index: number) => {
@@ -326,6 +329,19 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => toggleSpeakStep(currentStep?.instruction || '')}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                isSpeakingStep
+                  ? 'bg-amber-600 text-white border-amber-500 shadow-md animate-pulse'
+                  : 'bg-stone-900 text-stone-300 border-stone-800 hover:bg-stone-800'
+              }`}
+              title={isSpeakingStep ? 'Stop Voice' : 'Read Step Aloud'}
+            >
+              {isSpeakingStep ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-[#E8DAB7]" />}
+              <span className="hidden sm:inline">{isSpeakingStep ? 'Stop Voice' : 'Read Aloud'}</span>
+            </button>
+
+            <button
               onClick={() => setShowIngredientsInCooking(!showIngredientsInCooking)}
               className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
                 showIngredientsInCooking
@@ -380,17 +396,29 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 </div>
               )}
 
-              {currentStep?.timerMinutes && (
-                <div className="pt-2">
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={() => toggleSpeakStep(currentStep?.instruction || '')}
+                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl border text-xs sm:text-sm font-semibold transition-all ${
+                    isSpeakingStep
+                      ? 'bg-amber-600 text-white border-amber-500 shadow-lg animate-pulse'
+                      : 'bg-stone-900/90 hover:bg-stone-800 text-stone-200 border-stone-800'
+                  }`}
+                >
+                  {isSpeakingStep ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-[#E8DAB7]" />}
+                  <span>{isSpeakingStep ? 'Stop Voice Narration' : 'Read Step with Voice'}</span>
+                </button>
+
+                {currentStep?.timerMinutes && (
                   <button
                     onClick={() => handleStartStepTimer(currentStep.timerMinutes!, `Step ${safeStepNumber}`)}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#C85A32] hover:bg-[#B34E2A] text-white font-bold text-sm shadow-xl transition-all"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#C85A32] hover:bg-[#B34E2A] text-white font-bold text-xs sm:text-sm shadow-xl transition-all"
                   >
                     <Clock className="w-4 h-4" />
                     <span>Start {currentStep.timerMinutes}-Minute Timer</span>
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -731,15 +759,26 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                             {step.instruction}
                           </p>
 
-                          {step.timerMinutes && (
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
                             <button
-                              onClick={() => handleStartStepTimer(step.timerMinutes!, `Step ${step.stepNumber}`)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#C85A32] text-xs font-semibold transition-all"
+                              onClick={() => toggleSpeakStep(step.instruction)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#5E5248] text-xs font-medium transition-all"
+                              title="Listen to this step"
                             >
-                              <Clock className="w-3.5 h-3.5" />
-                              <span>Start {step.timerMinutes}m Timer</span>
+                              <Volume2 className="w-3.5 h-3.5 text-[#C85A32]" />
+                              <span>Listen</span>
                             </button>
-                          )}
+
+                            {step.timerMinutes && (
+                              <button
+                                onClick={() => handleStartStepTimer(step.timerMinutes!, `Step ${step.stepNumber}`)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#C85A32] text-xs font-semibold transition-all"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Start {step.timerMinutes}m Timer</span>
+                              </button>
+                            )}
+                          </div>
 
                           {step.tip && (
                             <div className="p-2.5 rounded-lg bg-[#FBF9F5] border border-[#E8E1D7] text-xs text-[#5E5248] flex items-start gap-2">

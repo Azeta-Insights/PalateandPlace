@@ -242,7 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return {
         success: true,
-        message: 'Your request for Test Premium has been submitted to the admin console for review!'
+        message: 'Your request to access the World Pass has been submitted to the admin for review'
       };
     } catch (err: any) {
       console.error('Request Test Premium Error:', err);
