@@ -11,11 +11,21 @@ import {
   Plus,
   CreditCard,
   Sparkles,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react';
-import { collection, getDocs, doc, updateDoc, setDoc, query } from 'firebase/firestore';
+import { 
+  collection, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  setDoc, 
+  query, 
+  where, 
+  onSnapshot 
+} from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { PremiumRequest } from '../types/recipe';
+import { PremiumRequest, UserEntitlement } from '../types/recipe';
 import { ALL_RECIPES, ALL_STARTER_RECIPES } from '../data/recipes';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,13 +38,14 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'requests' | 'payments' | 'aiUsage' | 'insights' | 'metrics'>('requests');
   const [requests, setRequests] = useState<PremiumRequest[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [aiUsageRecords, setAiUsageRecords] = useState<any[]>([]);
   const [insights, setInsights] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
 
   // Quick reviewer grant form state
@@ -44,6 +55,7 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
 
   const fetchAdminData = async () => {
     setLoading(true);
+    setIsRefreshing(true);
     let apiRequests: PremiumRequest[] = [];
     let firestoreRequests: PremiumRequest[] = [];
 
@@ -97,8 +109,43 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
       console.warn('Insights fetch error:', err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAdminData();
+
+      // Real-time listener for incoming & updated requests
+      const unsub = onSnapshot(collection(db, 'premiumRequests'), (snap) => {
+        const liveReqs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PremiumRequest[];
+        setRequests((prev) => {
+          const map = new Map<string, PremiumRequest>();
+          prev.forEach((r) => map.set(r.id || r.userId, r));
+          liveReqs.forEach((r) => map.set(r.id || r.userId, r));
+          return Array.from(map.values());
+        });
+      }, (err) => {
+        console.warn('Real-time requests subscription notice:', err);
+      });
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      window.history.pushState({ modal: 'admin-console' }, '');
+      const handlePopState = () => onClose();
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        unsub();
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [isOpen, onClose]);
 
   const handleQuickAddReviewer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,13 +153,16 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
     setIsAddingReviewer(true);
     try {
       const emailClean = reviewerEmail.trim().toLowerCase();
-      const reviewerId = emailClean;
-      const token = user ? await user.getIdToken() : '';
+      const reviewerPass: UserEntitlement = {
+        tier: 'test_premium',
+        source: 'reviewer_pass',
+        validUntil: 'never',
+        grantedAt: new Date().toISOString()
+      };
 
-      // Direct Firestore grant
       const newReq: PremiumRequest = {
-        id: `req-${Date.now()}`,
-        userId: reviewerId,
+        id: `req-${emailClean.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        userId: emailClean,
         name: reviewerName.trim() || 'Culinary Reviewer',
         email: emailClean,
         requestedAt: new Date().toISOString(),
@@ -120,20 +170,28 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
         reviewedAt: new Date().toISOString()
       };
 
+      // 1. Direct Firestore write for email entitlement and request
       try {
-        await setDoc(doc(db, 'premiumRequests', newReq.id), newReq);
-        await setDoc(doc(db, 'entitlements', reviewerId), {
-          tier: 'test_premium',
-          source: 'reviewer_pass',
-          validUntil: 'never',
-          grantedAt: new Date().toISOString()
-        }, { merge: true });
+        await setDoc(doc(db, 'premiumRequests', newReq.id), newReq, { merge: true });
+        await setDoc(doc(db, 'entitlements', emailClean), reviewerPass, { merge: true });
+
+        // Check if a registered user with this email exists in users collection
+        const userQuery = query(collection(db, 'users'), where('email', '==', emailClean));
+        const userSnap = await getDocs(userQuery);
+        for (const uDoc of userSnap.docs) {
+          await setDoc(doc(db, 'entitlements', uDoc.id), reviewerPass, { merge: true });
+          await updateDoc(doc(db, 'users', uDoc.id), {
+            entitlement: reviewerPass,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+        }
       } catch (fsErr) {
         console.warn('Direct Firestore reviewer grant notice:', fsErr);
       }
 
-      // Backend sync
+      // 2. Backend sync
       try {
+        const token = user ? await user.getIdToken() : '';
         const res = await fetch('/api/admin/dev-grant-premium', {
           method: 'POST',
           headers: {
@@ -141,7 +199,7 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           },
           body: JSON.stringify({
-            userId: reviewerId,
+            userId: emailClean,
             email: emailClean,
             name: reviewerName.trim() || 'Culinary Reviewer'
           })
@@ -161,47 +219,49 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
       setReviewerName('');
       fetchAdminData();
     } catch (err: any) {
-      setActionMessage(`Error granting access: ${err.message}`);
+      console.error('Quick reviewer grant error:', err);
+      setActionMessage(`Error: ${err.message || 'Could not grant access'}`);
     } finally {
       setIsAddingReviewer(false);
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchAdminData();
-
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose();
-      };
-      window.addEventListener('keydown', handleKeyDown);
-
-      window.history.pushState({ modal: 'admin-console' }, '');
-      const handlePopState = () => onClose();
-      window.addEventListener('popstate', handlePopState);
-
-      return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('popstate', handlePopState);
-      };
-    }
-  }, [isOpen, onClose]);
-
   const handleApproveRequest = async (req: PremiumRequest) => {
     try {
+      const emailClean = (req.email || '').trim().toLowerCase();
+      const reviewerPass: UserEntitlement = {
+        tier: 'test_premium',
+        source: 'reviewer_pass',
+        validUntil: 'never',
+        grantedAt: new Date().toISOString()
+      };
+
       // 1. Direct Firestore update
       try {
         await updateDoc(doc(db, 'premiumRequests', req.id), {
           status: 'approved',
           reviewedAt: new Date().toISOString()
         });
+
         if (req.userId) {
-          await setDoc(doc(db, 'entitlements', req.userId), {
-            tier: 'test_premium',
-            source: 'reviewer_pass',
-            validUntil: 'never',
-            grantedAt: new Date().toISOString()
-          }, { merge: true });
+          await setDoc(doc(db, 'entitlements', req.userId), reviewerPass, { merge: true });
+          await updateDoc(doc(db, 'users', req.userId), {
+            entitlement: reviewerPass,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+        }
+
+        if (emailClean) {
+          await setDoc(doc(db, 'entitlements', emailClean), reviewerPass, { merge: true });
+          const userQuery = query(collection(db, 'users'), where('email', '==', emailClean));
+          const userSnap = await getDocs(userQuery);
+          for (const uDoc of userSnap.docs) {
+            await setDoc(doc(db, 'entitlements', uDoc.id), reviewerPass, { merge: true });
+            await updateDoc(doc(db, 'users', uDoc.id), {
+              entitlement: reviewerPass,
+              updatedAt: new Date().toISOString()
+            }).catch(() => {});
+          }
         }
       } catch (fsErr) {
         console.warn('Firestore direct approve notice:', fsErr);
@@ -253,18 +313,39 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
 
   const handleRevokeAccess = async (req: PremiumRequest) => {
     try {
+      const emailClean = (req.email || '').trim().toLowerCase();
+      const freeEnt: UserEntitlement = {
+        tier: 'free',
+        source: 'default',
+        revokedAt: new Date().toISOString()
+      };
+
       // 1. Direct Firestore update
       try {
         await updateDoc(doc(db, 'premiumRequests', req.id), {
           status: 'revoked',
           reviewedAt: new Date().toISOString()
         });
+
         if (req.userId) {
-          await setDoc(doc(db, 'entitlements', req.userId), {
-            tier: 'free',
-            source: 'default',
-            revokedAt: new Date().toISOString()
-          }, { merge: true });
+          await setDoc(doc(db, 'entitlements', req.userId), freeEnt, { merge: true });
+          await updateDoc(doc(db, 'users', req.userId), {
+            entitlement: freeEnt,
+            updatedAt: new Date().toISOString()
+          }).catch(() => {});
+        }
+
+        if (emailClean) {
+          await setDoc(doc(db, 'entitlements', emailClean), freeEnt, { merge: true });
+          const userQuery = query(collection(db, 'users'), where('email', '==', emailClean));
+          const userSnap = await getDocs(userQuery);
+          for (const uDoc of userSnap.docs) {
+            await setDoc(doc(db, 'entitlements', uDoc.id), freeEnt, { merge: true });
+            await updateDoc(doc(db, 'users', uDoc.id), {
+              entitlement: freeEnt,
+              updatedAt: new Date().toISOString()
+            }).catch(() => {});
+          }
         }
       } catch (fsErr) {
         console.warn('Firestore direct revoke notice:', fsErr);
@@ -328,12 +409,23 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-[#71675D] hover:text-[#29231E] hover:bg-[#FAF5EC] transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchAdminData()}
+              disabled={isRefreshing}
+              title="Refresh Portal Data"
+              className="p-2 rounded-xl text-[#71675D] hover:text-[#29231E] hover:bg-[#FAF5EC] transition-colors flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#B85C3A]' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-[#71675D] hover:text-[#29231E] hover:bg-[#FAF5EC] transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Controls */}

@@ -15,7 +15,13 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  onSnapshot,
+  query,
+  where,
+  collection,
+  getDocs,
+  Unsubscribe
 } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase/config';
 import {
@@ -67,21 +73,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Fetch server-authoritative entitlement
-  const checkServerEntitlement = async (uid: string): Promise<UserEntitlement | null> => {
+  // Fetch server-authoritative entitlement by UID, email, and approved request checks
+  const checkServerEntitlement = async (uid: string, email?: string | null): Promise<UserEntitlement | null> => {
     try {
-      // Check client Firestore first
+      const emailClean = (email || '').trim().toLowerCase();
+
+      // 1. Check direct entitlement by UID
       try {
         const entDoc = await getDoc(doc(db, 'entitlements', uid));
         if (entDoc.exists()) {
           const data = entDoc.data() as UserEntitlement;
-          if (data && data.tier) return data;
+          if (data && (data.tier === 'premium' || data.tier === 'test_premium')) return data;
         }
       } catch (fsErr) {
-        console.warn('Firestore entitlement check notice:', fsErr);
+        console.warn('Firestore entitlement check notice (UID):', fsErr);
       }
 
-      // Check backend API safely
+      // 2. Check direct entitlement by email (for quick-added reviewers)
+      if (emailClean) {
+        try {
+          const emailEntDoc = await getDoc(doc(db, 'entitlements', emailClean));
+          if (emailEntDoc.exists()) {
+            const data = emailEntDoc.data() as UserEntitlement;
+            if (data && (data.tier === 'premium' || data.tier === 'test_premium')) {
+              // Sync to UID document so future lookups are immediate
+              await setDoc(doc(db, 'entitlements', uid), data, { merge: true });
+              return data;
+            }
+          }
+        } catch (emailErr) {
+          console.warn('Firestore entitlement check notice (Email):', emailErr);
+        }
+
+        // 3. Check approved reviewer requests matching this email or UID
+        try {
+          const reqQuery = query(collection(db, 'premiumRequests'), where('email', '==', emailClean));
+          const reqSnap = await getDocs(reqQuery);
+          const approvedReq = reqSnap.docs.find((d) => d.data().status === 'approved');
+          if (approvedReq) {
+            const reviewerEnt: UserEntitlement = {
+              tier: 'test_premium',
+              source: 'reviewer_pass',
+              validUntil: 'never',
+              grantedAt: approvedReq.data().reviewedAt || new Date().toISOString()
+            };
+            // Sync to UID doc
+            await setDoc(doc(db, 'entitlements', uid), reviewerEnt, { merge: true });
+            return reviewerEnt;
+          }
+        } catch (reqErr) {
+          console.warn('Firestore requests check notice:', reqErr);
+        }
+      }
+
+      // 4. Check backend API safely
       const res = await fetch(`/api/entitlements?userId=${encodeURIComponent(uid)}`);
       if (res.ok) {
         const contentType = res.headers.get('content-type');
@@ -96,21 +141,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   };
 
-  // Auth state listener
+  // Auth state listener with real-time Firestore entitlement syncing
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    let unsubs: Unsubscribe[] = [];
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+      // Clean up previous real-time listeners
+      unsubs.forEach((u) => u());
+      unsubs = [];
+
       setUser(fbUser);
       if (fbUser) {
+        const userEmail = (fbUser.email || '').toLowerCase();
+
         // Check admin status via custom claim or allowlist email
         fbUser
           .getIdTokenResult()
           .then((tokenResult) => {
             const hasAdminClaim = tokenResult.claims.admin === true;
-            const isEmailAdmin = fbUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+            const isEmailAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
             setIsAdmin(hasAdminClaim || isEmailAdmin);
           })
           .catch(() => {
-            setIsAdmin(fbUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+            setIsAdmin(userEmail === ADMIN_EMAIL.toLowerCase());
           });
 
         // Fetch or create Firestore user profile
@@ -156,14 +209,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
           // Verify server-authoritative entitlement
-          const serverEnt = await checkServerEntitlement(fbUser.uid);
+          const serverEnt = await checkServerEntitlement(fbUser.uid, fbUser.email);
           if (serverEnt && serverEnt.tier !== currentProfile.entitlement.tier) {
             currentProfile.entitlement = serverEnt;
+            await updateDoc(userDocRef, {
+              entitlement: serverEnt,
+              updatedAt: new Date().toISOString()
+            }).catch(() => {});
           }
 
           setProfile(currentProfile);
+
+          // Attach real-time snapshot listener on user document
+          const unsubUser = onSnapshot(userDocRef, (snap) => {
+            if (snap.exists()) {
+              const updatedData = snap.data() as UserProfile;
+              setProfile((prev) => (prev ? { ...prev, ...updatedData } : updatedData));
+            }
+          });
+          unsubs.push(unsubUser);
+
+          // Attach real-time snapshot listener on user's entitlement document
+          const entDocRef = doc(db, 'entitlements', fbUser.uid);
+          const unsubEnt = onSnapshot(entDocRef, (snap) => {
+            if (snap.exists()) {
+              const entData = snap.data() as UserEntitlement;
+              if (entData && entData.tier) {
+                setProfile((prev) => {
+                  if (!prev) return null;
+                  if (prev.entitlement?.tier === entData.tier) return prev;
+                  return { ...prev, entitlement: entData };
+                });
+              }
+            }
+          });
+          unsubs.push(unsubEnt);
+
+          // If email is present, also listen to email entitlement doc
+          if (userEmail) {
+            const emailEntRef = doc(db, 'entitlements', userEmail);
+            const unsubEmailEnt = onSnapshot(emailEntRef, async (snap) => {
+              if (snap.exists()) {
+                const entData = snap.data() as UserEntitlement;
+                if (entData && (entData.tier === 'premium' || entData.tier === 'test_premium')) {
+                  setProfile((prev) => (prev ? { ...prev, entitlement: entData } : null));
+                  await setDoc(doc(db, 'entitlements', fbUser.uid), entData, { merge: true }).catch(() => {});
+                }
+              }
+            });
+            unsubs.push(unsubEmailEnt);
+          }
         } catch (err) {
-          console.warn('Error fetching user profile from Firestore:', err);
+          console.warn('Error setting up user profile & snapshot listeners from Firestore:', err);
         }
       } else {
         setUser(null);
@@ -173,7 +270,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      unsubs.forEach((u) => u());
+    };
   }, []);
 
   // Auth Actions
