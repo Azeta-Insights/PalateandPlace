@@ -14,12 +14,12 @@ import {
   handleRevokeTestPremium,
   handleAdminOverview,
   handleDevGrantPremium
-} from '../apiHandler';
+} from '../apiHandler.js';
 
 // Create Express application for Vercel Serverless Functions
 const app = express();
 
-// Parse JSON request bodies while preserving the raw buffer on req.rawBody for HMAC verification
+// Parse JSON request bodies while preserving raw buffer on req.rawBody for HMAC verification
 app.use(
   express.json({
     verify: (req: any, _res, buf: Buffer) => {
@@ -42,55 +42,56 @@ app.use((req, res, next) => {
   next();
 });
 
-// Configure API router
-const router = express.Router();
+// Paystack payment endpoints (matches /api/paystack/* and /paystack/*)
+app.all(['/api/paystack/initialize', '/paystack/initialize', '*/paystack/initialize'], handlePaystackInit);
+app.all(['/api/paystack/verify', '/paystack/verify', '*/paystack/verify'], handlePaystackVerify);
+app.all(['/api/paystack/webhook', '/paystack/webhook', '*/paystack/webhook'], handlePaystackWebhook);
 
 // AI Chef endpoints
-router.post('/ai/ask-chef', handleAskChef);
-router.post('/ask-chef', handleAskChef);
-router.post('/chef/smart-search', handleSmartSearch);
+app.post(['/api/ai/ask-chef', '/ai/ask-chef', '/api/ask-chef', '/ask-chef', '*/ask-chef'], handleAskChef);
+app.post(['/api/chef/smart-search', '/chef/smart-search', '*/smart-search'], handleSmartSearch);
 
 // Recipe endpoints
-router.get('/recipes', handleGetRecipe);
-router.post('/recipes/download-batch', handleDownloadBatch);
-
-// Paystack payment endpoints
-router.all('/paystack/initialize', handlePaystackInit);
-router.all('/paystack/verify', handlePaystackVerify);
-router.all('/paystack/webhook', handlePaystackWebhook);
+app.get(['/api/recipes', '/recipes', '*/recipes'], handleGetRecipe);
+app.post(['/api/recipes/download-batch', '/recipes/download-batch', '*/download-batch'], handleDownloadBatch);
 
 // User entitlement & insights endpoints
-router.get('/entitlements', handleGetEntitlement);
-router.get('/recipe-insights', handleGetRecipeInsights);
+app.get(['/api/entitlements', '/entitlements', '*/entitlements'], handleGetEntitlement);
+app.get(['/api/recipe-insights', '/recipe-insights', '*/recipe-insights'], handleGetRecipeInsights);
 
 // Admin Console protected endpoints
-router.post('/admin/request-test-premium', handleRequestTestPremium);
-router.post('/admin/approve-test-premium', handleApproveTestPremium);
-router.post('/admin/revoke-test-premium', handleRevokeTestPremium);
-router.get('/admin/overview', handleAdminOverview);
-router.post('/admin/dev-grant-premium', handleDevGrantPremium);
+app.post(['/api/admin/request-test-premium', '/admin/request-test-premium', '*/request-test-premium'], handleRequestTestPremium);
+app.post(['/api/admin/approve-test-premium', '/admin/approve-test-premium', '*/approve-test-premium'], handleApproveTestPremium);
+app.post(['/api/admin/revoke-test-premium', '/admin/revoke-test-premium', '*/revoke-test-premium'], handleRevokeTestPremium);
+app.get(['/api/admin/overview', '/admin/overview', '*/admin/overview'], handleAdminOverview);
+app.post(['/api/admin/dev-grant-premium', '/admin/dev-grant-premium', '*/dev-grant-premium'], handleDevGrantPremium);
 
-// API Status & discovery
-router.get('/', (_req, res) => {
+// Health check / API Discovery
+app.get(['/', '/api', '/api/'], (_req, res) => {
   res.json({
     service: 'Palate and Place API',
     status: 'online',
     version: '2.0.0',
     endpoints: [
-      '/api/ai/ask-chef',
-      '/api/recipes',
       '/api/paystack/initialize',
       '/api/paystack/verify',
       '/api/paystack/webhook',
+      '/api/ai/ask-chef',
+      '/api/recipes',
       '/api/entitlements',
-      '/api/recipe-insights',
-      '/api/admin/overview'
+      '/api/recipe-insights'
     ]
   });
 });
 
-// Mount router under both /api and / to seamlessly handle Vercel rewrites and direct calls
-app.use('/api', router);
-app.use('/', router);
+// Fallback JSON 404 handler for any unmapped API calls
+app.use((req, res) => {
+  res.status(404).json({
+    error: `Route not found: ${req.method} ${req.originalUrl || req.url}`,
+    method: req.method,
+    url: req.url,
+    originalUrl: req.originalUrl
+  });
+});
 
 export default app;

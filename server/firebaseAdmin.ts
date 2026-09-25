@@ -1,7 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import firebaseAppletConfig from '../firebase-applet-config.json';
+
+const projectId = 'ai-studio-acafaa41-8ab8-407e-85e5-e51ae1fea3fb';
+const firestoreDatabaseId = '(default)';
 
 let adminApp: any = null;
 let adminAuthInstance: any = null;
@@ -10,9 +12,7 @@ let adminDbInstance: any = null;
 try {
   adminApp = getApps().length > 0
     ? getApp()
-    : initializeApp({
-        projectId: firebaseAppletConfig.projectId
-      });
+    : initializeApp({ projectId });
 
   try {
     adminAuthInstance = getAuth(adminApp);
@@ -21,8 +21,8 @@ try {
   }
 
   try {
-    adminDbInstance = (firebaseAppletConfig.firestoreDatabaseId && firebaseAppletConfig.firestoreDatabaseId !== '(default)')
-      ? getFirestore(adminApp, firebaseAppletConfig.firestoreDatabaseId)
+    adminDbInstance = (firestoreDatabaseId && firestoreDatabaseId !== '(default)')
+      ? getFirestore(adminApp, firestoreDatabaseId)
       : getFirestore(adminApp);
 
     try {
