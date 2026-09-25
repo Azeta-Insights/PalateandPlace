@@ -1,3 +1,4 @@
+import { auth } from '../firebase/config';
 import { UserEntitlement } from '../types/recipe';
 
 declare global {
@@ -30,23 +31,28 @@ export class PaystackService {
   static async initiateWorldUnlock(
     userEmail: string,
     userId: string,
-    idToken: string,
+    idTokenParam: string,
     onSuccess: (result: PaymentSuccessResult) => void,
     onError: (err: string) => void
   ): Promise<void> {
     try {
-      if (!idToken) {
-        onError('Please sign in with Google or Email before unlocking so your World Pass is securely linked to your account.');
-        return;
+      // Retrieve current Firebase user and ID token dynamically
+      const currentUser = auth.currentUser;
+      const fetchedToken = await currentUser?.getIdToken();
+      const tokenToUse = fetchedToken || idTokenParam || '';
+
+      // Prepare request headers with Bearer token if present
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (tokenToUse) {
+        headers['Authorization'] = `Bearer ${tokenToUse}`;
       }
 
-      // 1. Request initialization from backend API with verified token
+      // 1. Request initialization from backend API with token
       const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`
-        },
+        headers,
         body: JSON.stringify({})
       });
 
@@ -100,7 +106,7 @@ export class PaystackService {
         try {
           const handler = window.PaystackPop.setup({
             key: rawKey,
-            email: initData.email || userEmail || 'customer@palateandplace.app',
+            email: initData.email || userEmail || currentUser?.email || 'customer@palateandplace.app',
             amount: initData.amount || 250000,
             currency: initData.currency || 'NGN',
             ref: initData.reference,
@@ -108,8 +114,8 @@ export class PaystackService {
             callback: function (response: { reference: string }) {
               PaystackService.verifyAndGrantEntitlement(
                 response.reference,
-                userId,
-                idToken,
+                userId || currentUser?.uid || '',
+                tokenToUse,
                 onSuccess,
                 onError
               );
@@ -137,18 +143,26 @@ export class PaystackService {
   public static async verifyAndGrantEntitlement(
     reference: string,
     _userId: string,
-    idToken: string,
+    idTokenParam: string,
     onSuccess: (result: PaymentSuccessResult) => void,
     onError: (err: string) => void
   ): Promise<void> {
     try {
+      const currentUser = auth.currentUser;
+      const fetchedToken = await currentUser?.getIdToken();
+      const tokenToUse = fetchedToken || idTokenParam || '';
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (tokenToUse) {
+        headers['Authorization'] = `Bearer ${tokenToUse}`;
+      }
+
       // Backend securely verifies with Paystack and persists entitlement server-side
       const verifyRes = await fetch('/api/paystack/verify', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`
-        },
+        headers,
         body: JSON.stringify({ reference })
       });
 

@@ -14,7 +14,7 @@ import {
   handleRevokeTestPremium,
   handleAdminOverview,
   handleDevGrantPremium
-} from '../apiHandler.js';
+} from './apiHandler.js';
 
 // Create Express application for Vercel Serverless Functions
 const app = express();
