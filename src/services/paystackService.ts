@@ -65,7 +65,30 @@ export class PaystackService {
       const rawKey = (initData.publicKey || '').trim().replace(/^["']|["']$/g, '');
       const isRealPaystackKey = /^(pk_live_|pk_test_)[a-zA-Z0-9]{20,}$/.test(rawKey);
 
-      if (window.PaystackPop && window.PaystackPop.setup && isRealPaystackKey) {
+      if (!isRealPaystackKey) {
+        onError(
+          'Paystack live payment gateway is missing a valid Public Key (pk_live_... or pk_test_...) in Vercel Environment Variables. Please set PAYSTACK_PUBLIC_KEY in Vercel Project Settings.'
+        );
+        return;
+      }
+
+      // Ensure Paystack SDK is loaded in window
+      if (!window.PaystackPop) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://js.paystack.co/v1/inline.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load Paystack SDK script'));
+            document.head.appendChild(script);
+          });
+        } catch {
+          onError('Could not load Paystack SDK. Please check your network connection.');
+          return;
+        }
+      }
+
+      if (window.PaystackPop && window.PaystackPop.setup) {
         try {
           const handler = window.PaystackPop.setup({
             key: rawKey,
