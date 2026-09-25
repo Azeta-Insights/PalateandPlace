@@ -52,7 +52,11 @@ export class PaystackService {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Could not initiate payment session with server.');
+        throw new Error(
+          errorData.error ||
+          errorData.message ||
+          `Server returned HTTP ${res.status}: Could not initiate payment session.`
+        );
       }
 
       const initData = await res.json();
@@ -62,12 +66,16 @@ export class PaystackService {
         return;
       }
 
-      const rawKey = (initData.publicKey || '').trim().replace(/^["']|["']$/g, '');
+      const rawKey = (
+        initData.publicKey ||
+        (import.meta as any).env?.VITE_PAYSTACK_PUBLIC_KEY ||
+        ''
+      ).trim().replace(/^["']|["']$/g, '');
       const isRealPaystackKey = /^(pk_live_|pk_test_)[a-zA-Z0-9]{20,}$/.test(rawKey);
 
       if (!isRealPaystackKey) {
         onError(
-          'Paystack live payment gateway is missing a valid Public Key (pk_live_... or pk_test_...) in Vercel Environment Variables. Please set PAYSTACK_PUBLIC_KEY in Vercel Project Settings.'
+          'Paystack Public Key (pk_live_... or pk_test_...) is missing. Please add PAYSTACK_PUBLIC_KEY to Environment Variables in Vercel Dashboard and redeploy.'
         );
         return;
       }

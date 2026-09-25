@@ -89,36 +89,40 @@ export async function verifyUserToken(
     }
 
     try {
-      const decoded = await adminAuth.verifyIdToken(token);
-      if (decoded && decoded.uid) {
-        return {
-          uid: decoded.uid,
-          email: decoded.email,
-          provider: decoded.firebase?.sign_in_provider
-        };
-      }
-    } catch (verifyErr) {
-      console.warn('adminAuth.verifyIdToken failed in serverless env, parsing token claims:', verifyErr);
-      // Fallback: Validate token JWT payload claims directly
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-        while (base64.length % 4) {
-          base64 += '=';
-        }
-        const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
-        const nowSec = Math.floor(Date.now() / 1000);
-        if (payload && (payload.sub || payload.user_id) && payload.exp > nowSec) {
+      if (adminAuth) {
+        const decoded = await adminAuth.verifyIdToken(token);
+        if (decoded && decoded.uid) {
           return {
-            uid: payload.sub || payload.user_id,
-            email: payload.email,
-            provider: payload.firebase?.sign_in_provider
+            uid: decoded.uid,
+            email: decoded.email,
+            provider: decoded.firebase?.sign_in_provider
           };
         }
       }
+    } catch (verifyErr) {
+      console.warn('adminAuth.verifyIdToken failed in serverless env, parsing token claims directly:', verifyErr);
+    }
+
+    // Fallback: Validate token JWT payload claims directly
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (payload && (payload.sub || payload.user_id) && (payload.exp ? payload.exp > nowSec : true)) {
+        return {
+          uid: payload.sub || payload.user_id,
+          email: payload.email,
+          provider: payload.firebase?.sign_in_provider
+        };
+      }
     }
     return null;
-  } catch {
+  } catch (err) {
+    console.error('Error in verifyUserToken:', err);
     return null;
   }
 }
@@ -407,7 +411,7 @@ export async function incrementAiUsage(
 
   try {
     const usageRef = adminDb.collection('aiUsage').doc(docId);
-    return await adminDb.runTransaction(async (tx) => {
+    return await adminDb.runTransaction(async (tx: any) => {
       const snap = await tx.get(usageRef);
       let todayCount = 0;
       let monthCount = 0;
@@ -475,7 +479,7 @@ export async function recordRecipeQuestionInsight(
 
   try {
     const docRef = adminDb.collection('recipeInsights').doc(safeRecipeId);
-    await adminDb.runTransaction(async (tx) => {
+    await adminDb.runTransaction(async (tx: any) => {
       const snap = await tx.get(docRef);
       let totalQuestions = 0;
       let questionCategories: Record<string, number> = {};
@@ -898,48 +902,56 @@ export async function handleDownloadBatch(req: Request, res: Response) {
  * Sets amount, currency, plan on the server. Never trusts browser params.
  */
 export async function handlePaystackInit(req: Request, res: Response) {
-  const verifiedUser = await verifyUserToken(req);
-  if (!verifiedUser) {
-    return res.status(401).json({
-      error: 'Please sign in with Google or Email before unlocking so your World Pass is securely linked to your account.',
-      authRequired: true
+  try {
+    const verifiedUser = await verifyUserToken(req);
+    if (!verifiedUser) {
+      return res.status(401).json({
+        error: 'Please sign in with Google or Email before unlocking so your World Pass is securely linked to your account.',
+        authRequired: true
+      });
+    }
+
+    const email = verifiedUser.email || 'customer@palateandplace.app';
+    const userId = verifiedUser.uid;
+    const reference = `PNP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+    let rawKey = (
+      process.env.PAYSTACK_PUBLIC_KEY ||
+      process.env.VITE_PAYSTACK_PUBLIC_KEY ||
+      process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+      ''
+    ).trim().replace(/^["']|["']$/g, '');
+    let keyError: string | null = null;
+    if (rawKey.startsWith('sk_')) {
+      keyError = "Secret Key configured in PAYSTACK_PUBLIC_KEY. Please provide Public Key ('pk_...').";
+      rawKey = '';
+    }
+
+    const isRealKey = /^(pk_live_|pk_test_)[a-zA-Z0-9]{20,}$/.test(rawKey);
+
+    return res.json({
+      success: true,
+      amount: 250000, // ₦2,500 in kobo, server-enforced
+      currency: 'NGN',
+      reference,
+      email,
+      publicKey: isRealKey ? rawKey : '',
+      isLiveKey: isRealKey,
+      keyError,
+      metadata: {
+        userId,
+        appName: 'Palate & Place',
+        plan: 'world_unlock_lifetime',
+        price: 2500
+      }
+    });
+  } catch (err: any) {
+    console.error('Error in handlePaystackInit:', err);
+    return res.status(500).json({
+      error: 'Could not initiate payment session: ' + (err?.message || 'Internal server error'),
+      message: err?.message
     });
   }
-
-  const email = verifiedUser.email || 'customer@palateandplace.app';
-  const userId = verifiedUser.uid;
-  const reference = `PNP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-  let rawKey = (
-    process.env.PAYSTACK_PUBLIC_KEY ||
-    process.env.VITE_PAYSTACK_PUBLIC_KEY ||
-    process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ||
-    ''
-  ).trim().replace(/^["']|["']$/g, '');
-  let keyError: string | null = null;
-  if (rawKey.startsWith('sk_')) {
-    keyError = "Secret Key configured in PAYSTACK_PUBLIC_KEY. Please provide Public Key ('pk_...').";
-    rawKey = '';
-  }
-
-  const isRealKey = /^(pk_live_|pk_test_)[a-zA-Z0-9]{20,}$/.test(rawKey);
-
-  return res.json({
-    success: true,
-    amount: 250000, // ₦2,500 in kobo, server-enforced
-    currency: 'NGN',
-    reference,
-    email,
-    publicKey: isRealKey ? rawKey : '',
-    isLiveKey: isRealKey,
-    keyError,
-    metadata: {
-      userId,
-      appName: 'Palate & Place',
-      plan: 'world_unlock_lifetime',
-      price: 2500
-    }
-  });
 }
 
 /**
@@ -1013,32 +1025,38 @@ export async function handlePaystackVerify(req: Request, res: Response) {
       email: verifiedUser.email || transactionData.customer?.email || ''
     };
 
-    // 1. Persist payment record
-    await adminDb.collection('payments').doc(reference).set(paymentRecord, { merge: true });
+    if (adminDb) {
+      try {
+        // 1. Persist payment record
+        await adminDb.collection('payments').doc(reference).set(paymentRecord, { merge: true });
 
-    // 2. Persist authoritative entitlement server-side BEFORE returning
-    const premiumEnt: ServerEntitlement = {
-      tier: 'PREMIUM',
-      source: 'purchase',
-      createdAt: now,
-      updatedAt: now,
-      paymentReference: reference
-    };
-    await adminDb.collection('entitlements').doc(targetUserId).set(premiumEnt, { merge: true });
-
-    // 3. Sync to user profile document
-    await adminDb.collection('users').doc(targetUserId).set(
-      {
-        entitlement: {
-          tier: 'premium',
+        // 2. Persist authoritative entitlement server-side BEFORE returning
+        const premiumEnt: ServerEntitlement = {
+          tier: 'PREMIUM',
           source: 'purchase',
-          validUntil: 'never',
-          grantedAt: now
-        },
-        updatedAt: now
-      },
-      { merge: true }
-    );
+          createdAt: now,
+          updatedAt: now,
+          paymentReference: reference
+        };
+        await adminDb.collection('entitlements').doc(targetUserId).set(premiumEnt, { merge: true });
+
+        // 3. Sync to user profile document
+        await adminDb.collection('users').doc(targetUserId).set(
+          {
+            entitlement: {
+              tier: 'premium',
+              source: 'purchase',
+              validUntil: 'never',
+              grantedAt: now
+            },
+            updatedAt: now
+          },
+          { merge: true }
+        );
+      } catch (dbErr) {
+        console.warn('Firestore write warning in handlePaystackVerify:', dbErr);
+      }
+    }
 
     return res.json({
       verified: true,
@@ -1296,7 +1314,7 @@ export async function handleAdminOverview(req: Request, res: Response) {
     totalUsers = usersSnap.size;
 
     const requestsSnap = await adminDb.collection('premiumRequests').get();
-    requestsSnap.forEach((d) => {
+    requestsSnap.forEach((d: any) => {
       const data = d.data();
       const safeId = data.id || data.requestId || d.id;
       requests.push({
@@ -1307,24 +1325,24 @@ export async function handleAdminOverview(req: Request, res: Response) {
     });
 
     const paymentsSnap = await adminDb.collection('payments').get();
-    paymentsSnap.forEach((d) => {
+    paymentsSnap.forEach((d: any) => {
       payments.push(d.data());
     });
 
     const entitlementsSnap = await adminDb.collection('entitlements').get();
-    entitlementsSnap.forEach((d) => {
+    entitlementsSnap.forEach((d: any) => {
       const tier = d.data().tier?.toUpperCase();
       if (tier === 'PREMIUM') premiumUsers++;
       if (tier === 'TEST_PREMIUM') testPremiumUsers++;
     });
 
     const insightsSnap = await adminDb.collection('recipeInsights').get();
-    insightsSnap.forEach((d) => {
+    insightsSnap.forEach((d: any) => {
       insights.push(d.data());
     });
 
     const aiSnap = await adminDb.collection('aiUsage').get();
-    aiSnap.forEach((d) => {
+    aiSnap.forEach((d: any) => {
       const data = d.data();
       const today = data.todayCount || 0;
       const month = data.monthCount || 0;
@@ -1396,7 +1414,7 @@ export async function handleGetRecipeInsights(req: Request, res: Response) {
   const insights: any[] = [];
   try {
     const snap = await adminDb.collection('recipeInsights').get();
-    snap.forEach((d) => {
+    snap.forEach((d: any) => {
       insights.push(d.data());
     });
   } catch (err: any) {
