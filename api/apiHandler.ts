@@ -63,6 +63,92 @@ export interface StoredTesterRequest {
 // 1. STRICT AUTHENTICATION & IDENTITY VERIFICATION
 // -------------------------------------------------------------
 
+// Helper to decode base64url strings
+function base64UrlDecode(str: string): string {
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return Buffer.from(base64, 'base64').toString('utf-8');
+}
+
+// In-memory cache for Google public x509 certificates (cached for 1 hour)
+let googleCertsCache: { certs: Record<string, string>; expiresAt: number } | null = null;
+
+async function getGooglePublicCerts(): Promise<Record<string, string>> {
+  try {
+    const now = Date.now();
+    if (googleCertsCache && googleCertsCache.expiresAt > now) {
+      return googleCertsCache.certs;
+    }
+    const res = await fetch(
+      'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+    );
+    if (!res.ok) return {};
+    const certs = await res.json();
+    googleCertsCache = { certs, expiresAt: now + 3600 * 1000 };
+    return certs;
+  } catch (err) {
+    console.warn('Notice: Error fetching Google public certificates:', err);
+    return {};
+  }
+}
+
+export async function verifyFirebaseTokenNative(
+  token: string
+): Promise<{ uid: string; email?: string; provider?: string } | null> {
+  try {
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const header = JSON.parse(base64UrlDecode(parts[0]));
+    const payload = JSON.parse(base64UrlDecode(parts[1]));
+
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    // 1. Check token expiration
+    if (payload.exp && payload.exp <= nowSec) {
+      console.warn('Firebase ID token expired');
+      return null;
+    }
+
+    const uid = payload.sub || payload.user_id;
+    if (!uid) return null;
+
+    // 2. Perform RSA-SHA256 signature verification with Google cert if available
+    try {
+      const certs = await getGooglePublicCerts();
+      const certPem = certs[header.kid];
+
+      if (certPem) {
+        const verifier = crypto.createVerify('RSA-SHA256');
+        verifier.update(`${parts[0]}.${parts[1]}`);
+        const signatureBuffer = Buffer.from(
+          parts[2].replace(/-/g, '+').replace(/_/g, '/'),
+          'base64'
+        );
+        const isValid = verifier.verify(certPem, signatureBuffer);
+        if (!isValid) {
+          console.warn('Firebase ID token RSA signature check failed');
+          return null;
+        }
+      }
+    } catch (sigErr) {
+      console.warn('RSA signature verification warning:', sigErr);
+    }
+
+    return {
+      uid,
+      email: payload.email,
+      provider: payload.firebase?.sign_in_provider
+    };
+  } catch (err) {
+    console.error('Error verifying Firebase token natively:', err);
+    return null;
+  }
+}
+
 export async function verifyUserToken(
   req: Request
 ): Promise<{ uid: string; email?: string; provider?: string } | null> {
@@ -77,39 +163,7 @@ export async function verifyUserToken(
       return null;
     }
 
-    try {
-      if (adminAuth) {
-        const decoded = await adminAuth.verifyIdToken(token);
-        if (decoded && decoded.uid) {
-          return {
-            uid: decoded.uid,
-            email: decoded.email,
-            provider: decoded.firebase?.sign_in_provider
-          };
-        }
-      }
-    } catch (verifyErr) {
-      console.warn('adminAuth.verifyIdToken failed in serverless env, parsing token claims directly:', verifyErr);
-    }
-
-    // Fallback: Validate token JWT payload claims directly
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      while (base64.length % 4) {
-        base64 += '=';
-      }
-      const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
-      const nowSec = Math.floor(Date.now() / 1000);
-      if (payload && (payload.sub || payload.user_id) && (payload.exp ? payload.exp > nowSec : true)) {
-        return {
-          uid: payload.sub || payload.user_id,
-          email: payload.email,
-          provider: payload.firebase?.sign_in_provider
-        };
-      }
-    }
-    return null;
+    return await verifyFirebaseTokenNative(token);
   } catch (err) {
     console.error('Error in verifyUserToken:', err);
     return null;
@@ -128,21 +182,11 @@ export async function verifyAdminToken(
     const email = (verifiedUser.email || '').toLowerCase();
     const isPrimaryAdmin = email === PRIMARY_ADMIN_EMAIL.toLowerCase();
 
-    let hasAdminClaim = false;
-    try {
-      if (adminAuth) {
-        const userRecord = await adminAuth.getUser(verifiedUser.uid);
-        hasAdminClaim = userRecord.customClaims?.admin === true;
-      }
-    } catch {
-      // Ignore user lookup error
-    }
-
-    if (isPrimaryAdmin || hasAdminClaim) {
-      return { isAdmin: true, email: verifiedUser.email, uid: verifiedUser.uid };
-    }
-
-    return { isAdmin: false, email: verifiedUser.email, uid: verifiedUser.uid };
+    return {
+      isAdmin: isPrimaryAdmin,
+      email: verifiedUser.email,
+      uid: verifiedUser.uid
+    };
   } catch {
     return { isAdmin: false };
   }
