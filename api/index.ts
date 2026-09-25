@@ -1,3 +1,3 @@
-import app from './serverBundle.js';
+import app from './_bundle.js';
 
 export default app;
