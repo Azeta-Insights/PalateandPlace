@@ -36,7 +36,7 @@ export class PaystackService {
   ): Promise<void> {
     try {
       if (!idToken) {
-        onError('Please sign in before completing checkout so your lifetime pass is securely linked to your account.');
+        onError('Please sign in with Google or Email before unlocking so your World Pass is securely linked to your account.');
         return;
       }
 
@@ -52,7 +52,7 @@ export class PaystackService {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Could not initiate payment session with server.');
+        throw new Error(errorData.error || errorData.message || 'Could not initiate payment session with server.');
       }
 
       const initData = await res.json();

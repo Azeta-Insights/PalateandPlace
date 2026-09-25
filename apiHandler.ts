@@ -879,7 +879,10 @@ export async function handleDownloadBatch(req: Request, res: Response) {
 export async function handlePaystackInit(req: Request, res: Response) {
   const verifiedUser = await verifyUserToken(req);
   if (!verifiedUser) {
-    return res.status(401).json({ error: 'Authentication required. Please sign in to purchase.' });
+    return res.status(401).json({
+      error: 'Please sign in with Google or Email before unlocking so your World Pass is securely linked to your account.',
+      authRequired: true
+    });
   }
 
   const email = verifiedUser.email || 'customer@palateandplace.app';

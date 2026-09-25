@@ -21,7 +21,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { user, isPremium, devFastUnlockPremium, applyEntitlement } = useAuth();
+  const { user, isPremium, devFastUnlockPremium, applyEntitlement, signInWithGoogle } = useAuth();
   const [loadingPaystack, setLoadingPaystack] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [testRequestSuccess, setTestRequestSuccess] = useState('');
@@ -76,7 +76,18 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
     setLoadingPaystack(true);
     setErrorMessage('');
 
-    const idToken = user ? await user.getIdToken() : '';
+    if (!user) {
+      setLoadingPaystack(false);
+      setErrorMessage('Please sign in with Google or Email so your ₦2,500 World Pass purchase is securely linked to your account.');
+      try {
+        await signInWithGoogle();
+      } catch {
+        // User closed Google sign-in popup
+      }
+      return;
+    }
+
+    const idToken = await user.getIdToken();
 
     await PaystackService.initiateWorldUnlock(
       user?.email || 'guest@palateandplace.app',
