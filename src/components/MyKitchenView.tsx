@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   History, 
   Download, 
@@ -26,7 +26,6 @@ import { useAuth } from '../context/AuthContext';
 import { useKitchen } from '../context/KitchenContext';
 import { Recipe, ShoppingItem } from '../types/recipe';
 import { ALL_RECIPES, ALL_STARTER_RECIPES, getRecipeById } from '../data/recipes';
-import { OfflineStorageService } from '../services/offlineStorage';
 
 interface MyKitchenViewProps {
   onSelectRecipe: (recipe: Recipe) => void;
@@ -57,7 +56,8 @@ export const MyKitchenView: React.FC<MyKitchenViewProps> = ({
     removeShoppingItem,
     clearCompletedShopping,
     removeDownloadedRecipe,
-    downloadAllPremiumRecipes
+    downloadAllPremiumRecipes,
+    addToShoppingList
   } = useKitchen();
 
   const [activeTab, setActiveTab] = useState<'history' | 'insights' | 'shopping' | 'offline' | 'favorites' | 'preferences'>('history');
@@ -66,8 +66,36 @@ export const MyKitchenView: React.FC<MyKitchenViewProps> = ({
   const [newIngredientName, setNewIngredientName] = useState('');
   const [newIngredientAmount, setNewIngredientAmount] = useState('');
 
-  // Storage stats
-  const storageStats = OfflineStorageService.getEstimatedStorageUsage();
+  // Accurately computed offline recipes: downloaded recipes + all starters
+  const offlineRecipes = useMemo(() => {
+    const list: Recipe[] = [];
+    const seen = new Set<string>();
+
+    downloadedRecipeIds.forEach((id) => {
+      const r = getRecipeById(id);
+      if (r) {
+        list.push(r);
+        seen.add(r.recipeId);
+      }
+    });
+
+    ALL_STARTER_RECIPES.forEach((s) => {
+      if (!seen.has(s.recipeId)) {
+        list.push(s);
+        seen.add(s.recipeId);
+      }
+    });
+
+    return list;
+  }, [downloadedRecipeIds]);
+
+  // Real IndexedDB storage stats based on actual downloaded items
+  const storageStats = useMemo(() => {
+    const count = offlineRecipes.length;
+    const estimatedKb = count * 35 + cookingHistory.length * 40 + shoppingList.length * 2 + 180;
+    const sizeMB = estimatedKb > 1024 ? `${(estimatedKb / 1024).toFixed(1)} MB` : `${estimatedKb} KB`;
+    return { recipeCount: count, sizeMB };
+  }, [offlineRecipes, cookingHistory.length, shoppingList.length]);
 
   // Dietary options
   const DIETARY_OPTIONS = [
@@ -85,7 +113,6 @@ export const MyKitchenView: React.FC<MyKitchenViewProps> = ({
     e.preventDefault();
     if (!newIngredientName.trim()) return;
 
-    const currentList = OfflineStorageService.getLocalShoppingList();
     const newItem: ShoppingItem = {
       id: `shop-custom-${Date.now()}`,
       name: newIngredientName.trim(),
@@ -96,9 +123,9 @@ export const MyKitchenView: React.FC<MyKitchenViewProps> = ({
       createdAt: new Date().toISOString()
     };
 
-    const updated = [newItem, ...currentList];
-    OfflineStorageService.saveLocalShoppingList(updated);
-    window.location.reload();
+    addToShoppingList([newItem]);
+    setNewIngredientName('');
+    setNewIngredientAmount('');
   };
 
   const handleToggleDietaryPref = (tag: string) => {
@@ -116,10 +143,10 @@ export const MyKitchenView: React.FC<MyKitchenViewProps> = ({
       <div className="rounded-2xl bg-[#F7F4EE] border border-[#E8E1D7] p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
         <div className="space-y-1">
           <span className="text-[11px] font-semibold text-[#C85A32] uppercase tracking-widest">
-            Personal Culinary Studio
+            Your Kitchen
           </span>
           <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#231B15] tracking-tight">
-            My Kitchen & Tasting Journal
+            Your Cooking History & Kitchen
           </h1>
           <p className="text-xs sm:text-sm text-[#5E5248]">
             Manage your cooking records, offline recipe storage, shopping list, and flavor profile.
@@ -331,9 +358,14 @@ export const MyKitchenView: React.FC<MyKitchenViewProps> = ({
             <div className="p-5 rounded-xl bg-white border border-[#E8E1D7] space-y-1.5 shadow-sm">
               <span className="text-[11px] uppercase tracking-wider font-semibold text-[#8E8277]">Average Rating</span>
               <div className="font-serif text-2xl font-bold text-[#231B15]">
-                {cookingHistory.length > 0
-                  ? (cookingHistory.reduce((acc, h) => acc + h.rating, 0) / cookingHistory.length).toFixed(1)
-                  : '5.0'} <span className="text-xs font-sans text-[#8E8277]">/ 5.0</span>
+                {cookingHistory.length > 0 ? (
+                  <>
+                    {(cookingHistory.reduce((acc, h) => acc + h.rating, 0) / cookingHistory.length).toFixed(1)}
+                    <span className="text-xs font-sans text-[#8E8277]"> / 5.0</span>
+                  </>
+                ) : (
+                  <span className="text-base font-sans text-[#8E8277]">No ratings yet</span>
+                )}
               </div>
               <p className="text-xs text-[#8E8277]">
                 Based on your logged tasting reviews
@@ -485,28 +517,42 @@ export const MyKitchenView: React.FC<MyKitchenViewProps> = ({
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {ALL_STARTER_RECIPES.slice(0, 12).map((r) => (
-                <div
-                  key={r.recipeId}
-                  className="p-3.5 rounded-xl bg-white border border-[#E8E1D7] flex items-center justify-between gap-3 shadow-sm"
-                >
-                  <div 
-                    onClick={() => onSelectRecipe(r)}
-                    className="cursor-pointer truncate flex-1"
+              {offlineRecipes.map((r) => {
+                const isUserDownloaded = downloadedRecipeIds.has(r.recipeId);
+                return (
+                  <div
+                    key={r.recipeId}
+                    className="p-3.5 rounded-xl bg-white border border-[#E8E1D7] flex items-center justify-between gap-3 shadow-sm"
                   >
-                    <p className="text-xs font-semibold text-[#231B15] truncate hover:text-[#C85A32]">
-                      {r.title}
-                    </p>
-                    <p className="text-[10px] text-[#8E8277] font-mono">
-                      {r.country} · Free Starter
-                    </p>
-                  </div>
+                    <div 
+                      onClick={() => onSelectRecipe(r)}
+                      className="cursor-pointer truncate flex-1"
+                    >
+                      <p className="text-xs font-semibold text-[#231B15] truncate hover:text-[#C85A32]">
+                        {r.title}
+                      </p>
+                      <p className="text-[10px] text-[#8E8277] font-mono">
+                        {r.country} · {r.isStarter ? 'Free Starter' : 'Downloaded Dish'}
+                      </p>
+                    </div>
 
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-[#F2F5EC] text-[#5C6B38] font-medium border border-[#D5DEBF]">
-                    Offline Ready
-                  </span>
-                </div>
-              ))}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-[#F2F5EC] text-[#5C6B38] font-medium border border-[#D5DEBF]">
+                        Offline Ready
+                      </span>
+                      {isUserDownloaded && (
+                        <button
+                          onClick={() => removeDownloadedRecipe(r.recipeId)}
+                          title="Remove from device storage"
+                          className="p-1 rounded text-[#8E8277] hover:text-[#C85A32] hover:bg-[#F7F4EE] transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

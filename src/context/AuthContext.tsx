@@ -14,13 +14,8 @@ import {
   doc,
   getDoc,
   setDoc,
-  updateDoc,
   deleteDoc,
   onSnapshot,
-  query,
-  where,
-  collection,
-  getDocs,
   Unsubscribe
 } from 'firebase/firestore';
 import { auth, googleProvider, db } from '../firebase/config';
@@ -28,6 +23,7 @@ import {
   UserProfile,
   UserEntitlement
 } from '../types/recipe';
+import { indexedDbStorage } from '../services/indexedDbStorage';
 
 export const ADMIN_EMAIL = 'blessing.waydiva@gmail.com';
 
@@ -46,7 +42,8 @@ export interface AuthContextType {
   deleteAccount: () => Promise<void>;
   updatePreferences: (prefs: Partial<UserProfile['preferences']>) => Promise<void>;
   applyEntitlement: (entitlement: UserEntitlement) => void;
-  requestTestPremium: (name: string) => Promise<{ success: boolean; message: string }>;
+  requestTestPremium: (name: string, emailOverride?: string) => Promise<{ success: boolean; message: string }>;
+  checkAndActivateReviewerEmail: (email: string) => Promise<{ success: boolean; message: string }>;
   devFastUnlockPremium: () => Promise<boolean>;
 }
 
@@ -73,70 +70,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Fetch server-authoritative entitlement by UID, email, and approved request checks
-  const checkServerEntitlement = async (uid: string, email?: string | null): Promise<UserEntitlement | null> => {
+  // Fetch server-authoritative entitlement from Firestore & backend API
+  // Strict: The client only READS, NEVER writes entitlement records!
+  const checkServerEntitlement = async (uid: string, token?: string): Promise<UserEntitlement | null> => {
     try {
-      const emailClean = (email || '').trim().toLowerCase();
+      const isEntitledTier = (tier?: string) => {
+        const t = (tier || '').toLowerCase();
+        return t === 'premium' || t === 'test_premium';
+      };
 
-      // 1. Check direct entitlement by UID
+      // 1. Query authoritative backend API with verified ID token
+      if (token) {
+        try {
+          const res = await fetch('/api/entitlements', {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.entitlement && isEntitledTier(data.entitlement.tier)) {
+              return data.entitlement;
+            }
+          }
+        } catch {
+          // Fallback to Firestore check
+        }
+      }
+
+      // 2. Direct entitlement document in Firestore (read-only)
       try {
         const entDoc = await getDoc(doc(db, 'entitlements', uid));
         if (entDoc.exists()) {
           const data = entDoc.data() as UserEntitlement;
-          if (data && (data.tier === 'premium' || data.tier === 'test_premium')) return data;
-        }
-      } catch (fsErr) {
-        console.warn('Firestore entitlement check notice (UID):', fsErr);
-      }
-
-      // 2. Check direct entitlement by email (for quick-added reviewers)
-      if (emailClean) {
-        try {
-          const emailEntDoc = await getDoc(doc(db, 'entitlements', emailClean));
-          if (emailEntDoc.exists()) {
-            const data = emailEntDoc.data() as UserEntitlement;
-            if (data && (data.tier === 'premium' || data.tier === 'test_premium')) {
-              // Sync to UID document so future lookups are immediate
-              await setDoc(doc(db, 'entitlements', uid), data, { merge: true });
-              return data;
-            }
+          if (data && isEntitledTier(data.tier)) {
+            return data;
           }
-        } catch (emailErr) {
-          console.warn('Firestore entitlement check notice (Email):', emailErr);
         }
-
-        // 3. Check approved reviewer requests matching this email or UID
-        try {
-          const reqQuery = query(collection(db, 'premiumRequests'), where('email', '==', emailClean));
-          const reqSnap = await getDocs(reqQuery);
-          const approvedReq = reqSnap.docs.find((d) => d.data().status === 'approved');
-          if (approvedReq) {
-            const reviewerEnt: UserEntitlement = {
-              tier: 'test_premium',
-              source: 'reviewer_pass',
-              validUntil: 'never',
-              grantedAt: approvedReq.data().reviewedAt || new Date().toISOString()
-            };
-            // Sync to UID doc
-            await setDoc(doc(db, 'entitlements', uid), reviewerEnt, { merge: true });
-            return reviewerEnt;
-          }
-        } catch (reqErr) {
-          console.warn('Firestore requests check notice:', reqErr);
-        }
-      }
-
-      // 4. Check backend API safely
-      const res = await fetch(`/api/entitlements?userId=${encodeURIComponent(uid)}`);
-      if (res.ok) {
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await res.json();
-          return data.entitlement || null;
-        }
+      } catch {
+        // Handled
       }
     } catch {
-      // Ignore network error; fallback to profile
+      // Ignore error
     }
     return null;
   };
@@ -154,17 +129,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (fbUser) {
         const userEmail = (fbUser.email || '').toLowerCase();
 
-        // Check admin status via custom claim or allowlist email
-        fbUser
-          .getIdTokenResult()
-          .then((tokenResult) => {
-            const hasAdminClaim = tokenResult.claims.admin === true;
-            const isEmailAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
-            setIsAdmin(hasAdminClaim || isEmailAdmin);
-          })
-          .catch(() => {
-            setIsAdmin(userEmail === ADMIN_EMAIL.toLowerCase());
-          });
+        // Check admin status strictly via token claims and allowlisted verified email
+        let idToken = '';
+        try {
+          idToken = await fbUser.getIdToken();
+          const tokenResult = await fbUser.getIdTokenResult();
+          const hasAdminClaim = tokenResult.claims.admin === true;
+          const isEmailAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
+          setIsAdmin(hasAdminClaim || isEmailAdmin);
+        } catch {
+          setIsAdmin(userEmail === ADMIN_EMAIL.toLowerCase());
+        }
 
         // Fetch or create Firestore user profile
         try {
@@ -176,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (userDocSnap.exists()) {
             currentProfile = userDocSnap.data() as UserProfile;
           } else {
-            // New user defaults
+            // New user defaults (tier must be free on creation)
             currentProfile = {
               uid: fbUser.uid,
               email: fbUser.email || '',
@@ -208,28 +183,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await setDoc(userDocRef, currentProfile);
           }
 
-          // Verify server-authoritative entitlement
-          const serverEnt = await checkServerEntitlement(fbUser.uid, fbUser.email);
-          if (serverEnt && serverEnt.tier !== currentProfile.entitlement.tier) {
+          // Merge any offline preferences saved in IndexedDB
+          try {
+            const cachedPrefs = await indexedDbStorage.getUserData<UserProfile['preferences'] | null>(
+              fbUser.uid,
+              'preferences',
+              null
+            );
+            if (cachedPrefs) {
+              currentProfile.preferences = { ...currentProfile.preferences, ...cachedPrefs };
+            }
+          } catch {
+            // Ignore
+          }
+
+          // Check server-authoritative entitlement
+          const serverEnt = await checkServerEntitlement(fbUser.uid, idToken);
+          if (serverEnt) {
             currentProfile.entitlement = serverEnt;
-            await updateDoc(userDocRef, {
-              entitlement: serverEnt,
-              updatedAt: new Date().toISOString()
-            }).catch(() => {});
           }
 
           setProfile(currentProfile);
 
-          // Attach real-time snapshot listener on user document
+          // 1. Attach real-time snapshot listener on user document
           const unsubUser = onSnapshot(userDocRef, (snap) => {
             if (snap.exists()) {
               const updatedData = snap.data() as UserProfile;
-              setProfile((prev) => (prev ? { ...prev, ...updatedData } : updatedData));
+              setProfile((prev) => {
+                if (!prev) return updatedData;
+                return { ...prev, ...updatedData };
+              });
             }
           });
           unsubs.push(unsubUser);
 
-          // Attach real-time snapshot listener on user's entitlement document
+          // 2. Attach real-time snapshot listener on user's entitlement document (server-written)
           const entDocRef = doc(db, 'entitlements', fbUser.uid);
           const unsubEnt = onSnapshot(entDocRef, (snap) => {
             if (snap.exists()) {
@@ -244,23 +232,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           });
           unsubs.push(unsubEnt);
-
-          // If email is present, also listen to email entitlement doc
-          if (userEmail) {
-            const emailEntRef = doc(db, 'entitlements', userEmail);
-            const unsubEmailEnt = onSnapshot(emailEntRef, async (snap) => {
-              if (snap.exists()) {
-                const entData = snap.data() as UserEntitlement;
-                if (entData && (entData.tier === 'premium' || entData.tier === 'test_premium')) {
-                  setProfile((prev) => (prev ? { ...prev, entitlement: entData } : null));
-                  await setDoc(doc(db, 'entitlements', fbUser.uid), entData, { merge: true }).catch(() => {});
-                }
-              }
-            });
-            unsubs.push(unsubEmailEnt);
-          }
         } catch (err) {
-          console.warn('Error setting up user profile & snapshot listeners from Firestore:', err);
+          console.warn('Error setting up user profile from Firestore:', err);
         }
       } else {
         setUser(null);
@@ -299,6 +272,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setProfile(null);
     setIsAdmin(false);
+    try {
+      localStorage.removeItem('palate_curator_mode');
+      localStorage.removeItem('palate_guest_entitlement');
+      localStorage.removeItem('palate_reviewer_email');
+    } catch {
+      // Ignore
+    }
     await firebaseSignOut(auth);
   };
 
@@ -319,15 +299,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nextPrefs = { ...profile.preferences, ...prefs };
     setProfile((prev) => (prev ? { ...prev, preferences: nextPrefs } : null));
 
-    if (user && isOnline) {
-      try {
-        const userDocRef = doc(db, 'users', user.uid);
-        await updateDoc(userDocRef, {
-          preferences: nextPrefs,
-          updatedAt: new Date().toISOString()
+    const uid = user?.uid || 'guest';
+    // Persist to IndexedDB immediately so changes survive offline reloads
+    await indexedDbStorage.setUserData(uid, 'preferences', nextPrefs);
+
+    if (user) {
+      if (isOnline) {
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          // Note: Does not touch entitlement!
+          await setDoc(
+            userDocRef,
+            {
+              preferences: nextPrefs,
+              updatedAt: new Date().toISOString()
+            },
+            { merge: true }
+          );
+        } catch (err) {
+          console.warn('Error saving preferences to Firestore, queuing mutation:', err);
+          await indexedDbStorage.enqueueMutation({
+            uid: user.uid,
+            type: 'preference_update',
+            payload: nextPrefs
+          });
+        }
+      } else {
+        // Enqueue offline mutation for automatic syncing when internet is restored
+        await indexedDbStorage.enqueueMutation({
+          uid: user.uid,
+          type: 'preference_update',
+          payload: nextPrefs
         });
-      } catch (err) {
-        console.warn('Error saving preferences:', err);
       }
     }
   };
@@ -336,121 +339,146 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile((prev) => (prev ? { ...prev, entitlement } : null));
   };
 
-  const requestTestPremium = async (name: string): Promise<{ success: boolean; message: string }> => {
+  /**
+   * Tester premium request architecture.
+   * Sends request to server via verified token. Client never directly creates Firestore request document.
+   */
+  const requestTestPremium = async (
+    name: string,
+    _emailOverride?: string
+  ): Promise<{ success: boolean; message: string }> => {
     if (!user) {
-      return { success: false, message: 'Please sign in before requesting test premium.' };
+      return {
+        success: false,
+        message: 'Please sign in with Google or Email before requesting reviewer access.'
+      };
     }
 
     try {
-      // 1. Direct Firestore write first to guarantee request submission regardless of hosting or serverless state
-      const reqId = `req-${user.uid}`;
-      try {
-        await setDoc(
-          doc(db, 'premiumRequests', reqId),
-          {
-            id: reqId,
-            userId: user.uid,
-            name: name.trim() || user.displayName || 'Culinary Reviewer',
-            email: (user.email || '').toLowerCase(),
-            requestedAt: new Date().toISOString(),
-            status: 'pending'
-          },
-          { merge: true }
-        );
-      } catch (fsErr) {
-        console.warn('Direct Firestore request write notice:', fsErr);
-      }
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/request-test-premium', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: name.trim() || user.displayName || 'Reviewer'
+        })
+      });
 
-      // 2. Safely ping backend API if available
-      try {
-        const res = await fetch('/api/admin/request-test-premium', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.uid,
-            name: name.trim() || user.displayName || 'Tester',
-            email: user.email || ''
-          })
-        });
-
-        if (res.ok) {
-          const contentType = res.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            await res.json();
-          }
-        }
-      } catch (apiErr) {
-        console.warn('API backend notification notice:', apiErr);
+      const data = await res.json();
+      if (!res.ok) {
+        return {
+          success: false,
+          message: data.error || 'Failed to submit reviewer request.'
+        };
       }
 
       return {
         success: true,
-        message: 'Your request to access the World Pass has been submitted to the admin for review'
+        message: 'Your request to access the World Pass has been submitted to the admin for review.'
       };
     } catch (err: any) {
       console.error('Request Test Premium Error:', err);
       return {
-        success: true,
-        message: 'Your request to access the World Pass has been submitted to the admin for review'
+        success: false,
+        message: 'Network error submitting request. Please try again.'
       };
     }
   };
 
+  /**
+   * Checks reviewer email against server-authoritative backend.
+   * Client NEVER writes to entitlements.
+   */
+  const checkAndActivateReviewerEmail = async (
+    emailInput: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const emailClean = (emailInput || '').trim().toLowerCase();
+    if (!emailClean) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+
+    // Query backend to verify if entitlement exists
+    try {
+      const token = user ? await user.getIdToken() : '';
+      const res = await fetch('/api/entitlements', {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const tier = (data?.entitlement?.tier || '').toLowerCase();
+        if (tier === 'premium' || tier === 'test_premium') {
+          setProfile((prev) => (prev ? { ...prev, entitlement: data.entitlement } : null));
+          return { success: true, message: 'World Pass verified and active!' };
+        }
+      }
+
+      return {
+        success: false,
+        message: 'No approved World Pass found for this account.'
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Verification failed' };
+    }
+  };
+
+  /**
+   * Fast Dev Unlock:
+   * Verified developer/curator -> secure backend endpoint -> TEST_PREMIUM -> persisted -> client refresh.
+   */
   const devFastUnlockPremium = async (): Promise<boolean> => {
-    if (!user?.email) return false;
-    const premiumEnt: UserEntitlement = {
-      tier: 'premium',
-      source: 'direct_grant',
-      validUntil: 'never'
-    };
+    if (!user) {
+      console.warn('Dev unlock requires user to be signed in');
+      return false;
+    }
 
     try {
-      // Direct local & Firestore update for curator
-      setProfile((prev) => (prev ? { ...prev, entitlement: premiumEnt } : null));
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/dev-grant-premium', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ userId: user.uid })
+      });
 
-      try {
-        await setDoc(
-          doc(db, 'entitlements', user.uid),
-          premiumEnt,
-          { merge: true }
-        );
-        await updateDoc(doc(db, 'users', user.uid), {
-          entitlement: premiumEnt,
-          updatedAt: new Date().toISOString()
-        });
-      } catch (fsErr) {
-        console.warn('Direct Firestore curator grant notice:', fsErr);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.error('Dev grant rejected by server:', errData);
+        return false;
       }
 
-      try {
-        const token = await user.getIdToken();
-        const res = await fetch('/api/admin/dev-grant-premium', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ userEmail: user.email, userId: user.uid })
-        });
-        if (res.ok) {
-          const contentType = res.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            await res.json();
-          }
-        }
-      } catch (err) {
-        console.warn('API dev grant endpoint notice:', err);
+      const data = await res.json();
+      if (data.success && data.entitlement) {
+        const grantedEnt: UserEntitlement = {
+          tier: data.entitlement.tier || 'test_premium',
+          source: data.entitlement.source || 'dev',
+          validUntil: 'never',
+          grantedAt: data.entitlement.unlockedAt || new Date().toISOString()
+        };
+        setProfile((prev) => (prev ? { ...prev, entitlement: grantedEnt } : null));
+        return true;
       }
 
-      return true;
+      return false;
     } catch (err) {
       console.error('Dev grant premium error:', err);
-      return true;
+      return false;
     }
   };
 
   const isPremium =
-    profile?.entitlement?.tier === 'premium' || profile?.entitlement?.tier === 'test_premium';
+    isAdmin ||
+    profile?.entitlement?.tier?.toLowerCase() === 'premium' ||
+    profile?.entitlement?.tier?.toLowerCase() === 'test_premium' ||
+    (profile?.entitlement?.tier as string)?.toUpperCase() === 'PREMIUM' ||
+    (profile?.entitlement?.tier as string)?.toUpperCase() === 'TEST_PREMIUM';
 
   return (
     <AuthContext.Provider
@@ -470,6 +498,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatePreferences,
         applyEntitlement,
         requestTestPremium,
+        checkAndActivateReviewerEmail,
         devFastUnlockPremium
       }}
     >

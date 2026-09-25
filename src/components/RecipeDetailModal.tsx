@@ -28,6 +28,13 @@ import {
   List,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Lightbulb,
+  ShieldAlert,
+  DollarSign,
+  ArrowRight,
   Lock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -93,21 +100,33 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [recipe, setRecipe] = useState<Recipe>(initialRecipe);
   const [isLoadingFullRecipe, setIsLoadingFullRecipe] = useState(false);
 
-  // Load full recipe from IndexedDB or API if it is currently a summary
+  // Load full recipe from IndexedDB or API if it is currently a summary and user is entitled
   useEffect(() => {
+    let isMounted = true;
     setRecipe(initialRecipe);
-    if ((!initialRecipe.ingredients || initialRecipe.ingredients.length === 0) && fetchFullRecipe) {
+
+    if ((!initialRecipe.ingredients || initialRecipe.ingredients.length === 0) && isPremiumUser && fetchFullRecipe) {
       setIsLoadingFullRecipe(true);
       fetchFullRecipe(initialRecipe.recipeId).then(full => {
-        if (full) {
-          setRecipe(full);
+        if (isMounted) {
+          if (full && full.ingredients && full.ingredients.length > 0) {
+            setRecipe(full);
+          }
+          setIsLoadingFullRecipe(false);
         }
-        setIsLoadingFullRecipe(false);
       }).catch(() => {
-        setIsLoadingFullRecipe(false);
+        if (isMounted) {
+          setIsLoadingFullRecipe(false);
+        }
       });
+    } else {
+      setIsLoadingFullRecipe(false);
     }
-  }, [initialRecipe, fetchFullRecipe]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialRecipe.recipeId, isPremiumUser]);
 
   // Servings Scaler state
   const [servings, setServings] = useState(initialRecipe.servings || 4);
@@ -124,6 +143,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [isCookingMode, setIsCookingMode] = useState(false);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [showIngredientsInCooking, setShowIngredientsInCooking] = useState(false);
+  const [showTipsInCooking, setShowTipsInCooking] = useState(false);
   const [isSpeakingStep, setIsSpeakingStep] = useState(false);
 
   // Stop speech when step or mode changes
@@ -170,6 +190,17 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
   // Added to shopping list toast state
   const [addedToListToast, setAddedToListToast] = useState(false);
+
+  // Culinary FAQ Accordion State (first item open by default)
+  const [openFaqIndices, setOpenFaqIndices] = useState<Set<number>>(new Set([0]));
+  const toggleFaq = (idx: number) => {
+    setOpenFaqIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
 
   // Keyboard Escape and browser Back listener for seamless navigation
   useEffect(() => {
@@ -295,13 +326,17 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     setTimeout(() => setAddedToListToast(false), 2500);
   };
 
+  const isLocked = recipe.isPremium && !isPremiumUser;
+  const ingredients = recipe.ingredients || [];
+  const preparationSteps = recipe.preparationSteps || [];
+
   // -------------------------------------------------------------
   // DISTRACTION-FREE COOKING MODE (Strictly DARK, high-contrast theme)
   // -------------------------------------------------------------
   if (isCookingMode) {
-    const totalSteps = recipe.preparationSteps.length;
+    const totalSteps = preparationSteps.length;
     const safeStepNumber = activeStepIndex + 1;
-    const currentStep = recipe.preparationSteps[activeStepIndex] || recipe.preparationSteps[0];
+    const currentStep = preparationSteps[activeStepIndex] || preparationSteps[0];
     const isCurrentStepDone = completedSteps.has(safeStepNumber);
 
     return (
@@ -342,7 +377,10 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
             </button>
 
             <button
-              onClick={() => setShowIngredientsInCooking(!showIngredientsInCooking)}
+              onClick={() => {
+                setShowIngredientsInCooking(!showIngredientsInCooking);
+                setShowTipsInCooking(false);
+              }}
               className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
                 showIngredientsInCooking
                   ? 'bg-[#C85A32] text-white border-[#C85A32]'
@@ -352,6 +390,23 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               <List className="w-4 h-4" />
               <span className="hidden sm:inline">Ingredients</span>
             </button>
+
+            {((recipe.substitutions && recipe.substitutions.length > 0) || (recipe.cookingTips && recipe.cookingTips.length > 0)) && (
+              <button
+                onClick={() => {
+                  setShowTipsInCooking(!showTipsInCooking);
+                  setShowIngredientsInCooking(false);
+                }}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+                  showTipsInCooking
+                    ? 'bg-[#C85A32] text-white border-[#C85A32]'
+                    : 'bg-stone-900 text-stone-300 border-stone-800 hover:bg-stone-800'
+                }`}
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">Swaps & Tips</span>
+              </button>
+            )}
 
             <button
               onClick={() => onOpenChefWithRecipe(recipe, `I am cooking ${recipe.title} (Step ${safeStepNumber}). Can you help me?`)}
@@ -365,7 +420,52 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
         {/* Center Step Workspace */}
         <div className="my-auto max-w-4xl mx-auto w-full py-6 space-y-6">
-          {showIngredientsInCooking ? (
+          {showTipsInCooking ? (
+            <div className="bg-stone-900/95 rounded-2xl border border-stone-800 p-6 space-y-5 max-h-[60vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-800">
+                <h3 className="font-serif text-lg font-bold text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#C85A32]" />
+                  <span>Chef's Pro Tips & Ingredient Substitutions</span>
+                </h3>
+                <button
+                  onClick={() => setShowTipsInCooking(false)}
+                  className="text-xs text-stone-400 hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
+
+              {recipe.cookingTips && recipe.cookingTips.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs uppercase text-[#C85A32] font-semibold tracking-wider">Chef's Technique</h4>
+                  {recipe.cookingTips.map((tip, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-stone-950 border border-stone-800 text-xs sm:text-sm text-stone-200 flex items-start gap-2">
+                      <Lightbulb className="w-4 h-4 text-[#C85A32] shrink-0 mt-0.5" />
+                      <span>{tip}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {recipe.substitutions && recipe.substitutions.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs uppercase text-[#E8DAB7] font-semibold tracking-wider">Pantry Swaps</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-stone-300">
+                    {recipe.substitutions.map((sub, i) => (
+                      <div key={i} className="p-3 rounded-xl bg-stone-950 border border-stone-800 space-y-1">
+                        <div className="font-bold text-white">{sub.ingredient}</div>
+                        <div className="text-[#5C6B38] flex items-center gap-1">
+                          <ArrowRight className="w-3 h-3" />
+                          <span>{sub.substitute}</span>
+                        </div>
+                        {sub.ratio && <div className="text-[10px] text-stone-400 font-mono">Ratio: {sub.ratio}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : showIngredientsInCooking ? (
             <div className="bg-stone-900/90 rounded-2xl border border-stone-800 p-6 space-y-4 max-h-[60vh] overflow-y-auto">
               <h3 className="font-serif text-lg font-bold text-white">Recipe Ingredients</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-stone-300">
@@ -588,6 +688,31 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               </div>
             </div>
 
+            {/* Dietary Tags, Cost Tier & Allergen Safety */}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              {recipe.estimatedCost && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#F7F4EE] text-[#5E5248] text-xs font-semibold border border-[#E8E1D7] shadow-xs">
+                  <DollarSign className="w-3.5 h-3.5 text-[#C85A32]" />
+                  <span>{recipe.estimatedCost}</span>
+                </span>
+              )}
+              {recipe.dietaryTags && recipe.dietaryTags.map((tag) => (
+                <span key={tag} className="px-3 py-1 rounded-lg bg-[#F2F5EC] text-[#5C6B38] text-xs font-medium border border-[#D5DEBF] shadow-xs">
+                  {tag}
+                </span>
+              ))}
+              {recipe.allergens && recipe.allergens.length > 0 ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#FDF2ED] text-[#C85A32] text-xs font-medium border border-[#F4CEBE] shadow-xs">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Contains: {recipe.allergens.join(', ')}</span>
+                </span>
+              ) : (
+                <span className="px-3 py-1 rounded-lg bg-white text-[#8E8277] text-xs border border-[#E8E1D7]">
+                  No common allergens
+                </span>
+              )}
+            </div>
+
             {/* Cultural Background & Story */}
             <div className="p-5 rounded-xl bg-[#F7F4EE] border border-[#E8E1D7] space-y-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-[#C85A32] uppercase tracking-wider">
@@ -602,197 +727,422 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               </p>
             </div>
 
-            {/* Ingredients Section */}
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E8E1D7]">
-                <div className="flex items-center gap-3">
-                  <h3 className="font-serif text-xl font-bold text-[#231B15]">
-                    Ingredients
-                  </h3>
-                  <span className="text-xs px-2.5 py-0.5 rounded bg-[#F4F0E8] text-[#5E5248] font-mono">
-                    {recipe.ingredients.length} items
+            {isLocked ? (
+              <div className="p-6 sm:p-8 rounded-2xl bg-[#FFFDF8] border border-[#E6DEC8] space-y-6 shadow-sm">
+                <div className="text-center space-y-3 max-w-lg mx-auto">
+                  <div className="w-12 h-12 rounded-2xl bg-[#29231E] text-[#E8DAB7] flex items-center justify-center mx-auto shadow-sm">
+                    <Lock className="w-6 h-6 stroke-[2]" />
+                  </div>
+                  <span className="text-[11px] font-semibold text-[#B85C3A] tracking-wider uppercase font-sans">
+                    World Pass Member Exclusive
                   </span>
+                  <h3 className="font-serif text-2xl font-bold text-[#231B15]">
+                    Unlock Full Authentic Recipe
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#71675D] leading-relaxed font-sans">
+                    Complete ingredient measurements, substitution secrets, and step-by-step cooking techniques for {recipe.title} are exclusive to World Pass holders.
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {/* Servings Scaler */}
-                  <div className="flex items-center bg-white rounded-lg border border-[#E8E1D7] p-1">
-                    <span className="text-xs text-[#8E8277] px-2 flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5" />
-                      Serves
-                    </span>
-                    <button
-                      onClick={() => setServings(Math.max(1, servings - 1))}
-                      className="p-1 rounded hover:bg-[#F4F0E8] text-[#231B15]"
-                      title="Decrease servings"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-7 text-center font-bold text-xs text-[#231B15]">
-                      {servings}
-                    </span>
-                    <button
-                      onClick={() => setServings(servings + 1)}
-                      className="p-1 rounded hover:bg-[#F4F0E8] text-[#231B15]"
-                      title="Increase servings"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Unit Switcher */}
-                  <div className="flex bg-white rounded-lg border border-[#E8E1D7] p-1 text-xs">
-                    <button
-                      onClick={() => setUnitSystem('metric')}
-                      className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                        unitSystem === 'metric' ? 'bg-[#231B15] text-white font-semibold' : 'text-[#8E8277]'
-                      }`}
-                    >
-                      Metric
-                    </button>
-                    <button
-                      onClick={() => setUnitSystem('imperial')}
-                      className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                        unitSystem === 'imperial' ? 'bg-[#231B15] text-white font-semibold' : 'text-[#8E8277]'
-                      }`}
-                    >
-                      Imperial
-                    </button>
-                  </div>
+                <div className="pt-2 max-w-sm mx-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenUnlockModal) onOpenUnlockModal();
+                    }}
+                    className="w-full py-3.5 px-6 rounded-xl bg-[#29231E] hover:bg-[#3D322A] text-[#FFFDF8] text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4 text-[#E8DAB7]" />
+                    <span>Unlock World Pass — ₦2,500 Lifetime</span>
+                  </button>
                 </div>
               </div>
-
-              {/* Ingredient Checklist */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {recipe.ingredients.map((ing, idx) => {
-                  const isChecked = checkedIngredients.has(idx);
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => toggleCheckIngredient(idx)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
-                        isChecked
-                          ? 'bg-[#F4F0E8]/60 border-[#E8E1D7] opacity-60 line-through'
-                          : 'bg-white border-[#E8E1D7] hover:border-[#231B15]/40 shadow-sm'
-                      }`}
-                    >
-                      <div className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border transition-colors ${
-                        isChecked ? 'bg-[#5C6B38] border-[#5C6B38] text-white' : 'border-[#D8CEBE]'
-                      }`}>
-                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="font-semibold text-[#231B15] text-xs sm:text-sm">
-                          {formatScaledAmount(ing.amount, ing.unit)}
-                        </span>
-                        <span className="text-[#231B15] text-xs sm:text-sm ml-1.5">
-                          {ing.name}
-                        </span>
-                        {ing.notes && (
-                          <p className="text-[11px] text-[#8E8277] italic mt-0.5">
-                            {ing.notes}
-                          </p>
-                        )}
-                      </div>
+            ) : isLoadingFullRecipe ? (
+              <div className="p-8 rounded-2xl bg-white border border-[#E8E1D7] text-center space-y-3">
+                <div className="w-8 h-8 rounded-full border-2 border-[#C85A32] border-t-transparent animate-spin mx-auto" />
+                <p className="font-serif text-sm font-bold text-[#231B15]">Retrieving authentic recipe techniques...</p>
+                <p className="text-xs text-[#8E8277]">Loading ingredients and step-by-step culinary instructions</p>
+              </div>
+            ) : (
+              <>
+                {/* Ingredients Section */}
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E8E1D7]">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-serif text-xl font-bold text-[#231B15]">
+                        Ingredients
+                      </h3>
+                      <span className="text-xs px-2.5 py-0.5 rounded bg-[#F4F0E8] text-[#5E5248] font-mono">
+                        {ingredients.length} items
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Shopping List Action Bar */}
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  onClick={handleShoppingListClick}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white hover:bg-[#F4F0E8] text-[#231B15] border border-[#E8E1D7] text-xs font-semibold transition-all shadow-sm"
-                >
-                  <ShoppingBag className="w-4 h-4 text-[#C85A32]" />
-                  <span>{addedToListToast ? '✓ Added to Shopping List!' : 'Add All to Shopping List'}</span>
-                </button>
-
-                <button
-                  onClick={() => onOpenChefWithRecipe(recipe, `What substitutions can I make for ${recipe.title}?`)}
-                  className="text-xs text-[#C85A32] hover:underline flex items-center gap-1 font-medium"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Missing an ingredient? Ask Chef
-                </button>
-              </div>
-            </div>
-
-            {/* Preparation Steps Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-[#E8E1D7]">
-                <h3 className="font-serif text-xl font-bold text-[#231B15]">
-                  Step-by-Step Preparation
-                </h3>
-                <span className="text-xs text-[#8E8277] font-mono">
-                  {completedSteps.size} of {recipe.preparationSteps.length} completed
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {recipe.preparationSteps.map((step) => {
-                  const isDone = completedSteps.has(step.stepNumber);
-                  return (
-                    <div
-                      key={step.stepNumber}
-                      className={`p-4 rounded-xl border transition-all ${
-                        isDone
-                          ? 'bg-[#F4F0E8]/50 border-[#E8E1D7] opacity-70'
-                          : 'bg-white border-[#E8E1D7] hover:border-[#231B15]/40 shadow-sm'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-3">
+                      {/* Servings Scaler */}
+                      <div className="flex items-center bg-white rounded-lg border border-[#E8E1D7] p-1">
+                        <span className="text-xs text-[#8E8277] px-2 flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" />
+                          Serves
+                        </span>
                         <button
-                          onClick={() => toggleCompleteStep(step.stepNumber)}
-                          className={`mt-0.5 w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
-                            isDone
-                              ? 'bg-[#5C6B38] text-white'
-                              : 'bg-[#F4F0E8] text-[#5E5248] hover:bg-[#EAE4D9]'
+                          onClick={() => setServings(Math.max(1, servings - 1))}
+                          className="p-1 rounded hover:bg-[#F4F0E8] text-[#231B15]"
+                          title="Decrease servings"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-7 text-center font-bold text-xs text-[#231B15]">
+                          {servings}
+                        </span>
+                        <button
+                          onClick={() => setServings(servings + 1)}
+                          className="p-1 rounded hover:bg-[#F4F0E8] text-[#231B15]"
+                          title="Increase servings"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Unit Switcher */}
+                      <div className="flex bg-white rounded-lg border border-[#E8E1D7] p-1 text-xs">
+                        <button
+                          onClick={() => setUnitSystem('metric')}
+                          className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                            unitSystem === 'metric' ? 'bg-[#231B15] text-white font-semibold' : 'text-[#8E8277]'
                           }`}
                         >
-                          {isDone ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : step.stepNumber}
+                          Metric
                         </button>
-
-                        <div className="space-y-2 flex-1">
-                          <p className={`text-xs sm:text-sm leading-relaxed ${isDone ? 'line-through text-[#8E8277]' : 'text-[#231B15]'}`}>
-                            {step.instruction}
-                          </p>
-
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            <button
-                              onClick={() => toggleSpeakStep(step.instruction)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#5E5248] text-xs font-medium transition-all"
-                              title="Listen to this step"
-                            >
-                              <Volume2 className="w-3.5 h-3.5 text-[#C85A32]" />
-                              <span>Listen</span>
-                            </button>
-
-                            {step.timerMinutes && (
-                              <button
-                                onClick={() => handleStartStepTimer(step.timerMinutes!, `Step ${step.stepNumber}`)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#C85A32] text-xs font-semibold transition-all"
-                              >
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>Start {step.timerMinutes}m Timer</span>
-                              </button>
-                            )}
-                          </div>
-
-                          {step.tip && (
-                            <div className="p-2.5 rounded-lg bg-[#FBF9F5] border border-[#E8E1D7] text-xs text-[#5E5248] flex items-start gap-2">
-                              <Sparkles className="w-3.5 h-3.5 text-[#C85A32] shrink-0 mt-0.5" />
-                              <span>{step.tip}</span>
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => setUnitSystem('imperial')}
+                          className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                            unitSystem === 'imperial' ? 'bg-[#231B15] text-white font-semibold' : 'text-[#8E8277]'
+                          }`}
+                        >
+                          Imperial
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+
+                  {/* Ingredient Checklist */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {ingredients.map((ing, idx) => {
+                      const isChecked = checkedIngredients.has(idx);
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => toggleCheckIngredient(idx)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
+                            isChecked
+                              ? 'bg-[#F4F0E8]/60 border-[#E8E1D7] opacity-60 line-through'
+                              : 'bg-white border-[#E8E1D7] hover:border-[#231B15]/40 shadow-sm'
+                          }`}
+                        >
+                          <div className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                            isChecked ? 'bg-[#5C6B38] border-[#5C6B38] text-white' : 'border-[#D8CEBE]'
+                          }`}>
+                            {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold text-[#231B15] text-xs sm:text-sm">
+                              {formatScaledAmount(ing.amount, ing.unit)}
+                            </span>
+                            <span className="text-[#231B15] text-xs sm:text-sm ml-1.5">
+                              {ing.name}
+                            </span>
+                            {ing.notes && (
+                              <p className="text-[11px] text-[#8E8277] italic mt-0.5">
+                                {ing.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Shopping List Action Bar */}
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      onClick={handleShoppingListClick}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white hover:bg-[#F4F0E8] text-[#231B15] border border-[#E8E1D7] text-xs font-semibold transition-all shadow-sm cursor-pointer"
+                    >
+                      <ShoppingBag className="w-4 h-4 text-[#C85A32]" />
+                      <span>{addedToListToast ? '✓ Added to Shopping List!' : 'Add All to Shopping List'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => onOpenChefWithRecipe(recipe, `What substitutions can I make for ${recipe.title}?`)}
+                      className="text-xs text-[#C85A32] hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Missing an ingredient? Ask Chef
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preparation Steps Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#E8E1D7]">
+                    <h3 className="font-serif text-xl font-bold text-[#231B15]">
+                      Step-by-Step Preparation
+                    </h3>
+                    <span className="text-xs text-[#8E8277] font-mono">
+                      {completedSteps.size} of {preparationSteps.length} completed
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {preparationSteps.map((step) => {
+                      const isDone = completedSteps.has(step.stepNumber);
+                      return (
+                        <div
+                          key={step.stepNumber}
+                          className={`p-4 rounded-xl border transition-all ${
+                            isDone
+                              ? 'bg-[#F4F0E8]/50 border-[#E8E1D7] opacity-70'
+                              : 'bg-white border-[#E8E1D7] hover:border-[#231B15]/40 shadow-sm'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <button
+                              onClick={() => toggleCompleteStep(step.stepNumber)}
+                              className={`mt-0.5 w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
+                                isDone
+                                  ? 'bg-[#5C6B38] text-white'
+                                  : 'bg-[#F4F0E8] text-[#5E5248] hover:bg-[#EAE4D9]'
+                              }`}
+                            >
+                              {isDone ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : step.stepNumber}
+                            </button>
+
+                            <div className="space-y-2 flex-1">
+                              <p className={`text-xs sm:text-sm leading-relaxed ${isDone ? 'line-through text-[#8E8277]' : 'text-[#231B15]'}`}>
+                                {step.instruction}
+                              </p>
+
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <button
+                                  onClick={() => toggleSpeakStep(step.instruction)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#5E5248] text-xs font-medium transition-all cursor-pointer"
+                                  title="Listen to this step"
+                                >
+                                  <Volume2 className="w-3.5 h-3.5 text-[#C85A32]" />
+                                  <span>Listen</span>
+                                </button>
+
+                                {step.timerMinutes && (
+                                  <button
+                                    onClick={() => handleStartStepTimer(step.timerMinutes!, `Step ${step.stepNumber}`)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#F7F4EE] hover:bg-[#EAE4D9] border border-[#E8E1D7] text-[#C85A32] text-xs font-semibold transition-all cursor-pointer"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>Start {step.timerMinutes}m Timer</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {step.tip && (
+                                <div className="p-2.5 rounded-lg bg-[#FBF9F5] border border-[#E8E1D7] text-xs text-[#5E5248] flex items-start gap-2">
+                                  <Sparkles className="w-3.5 h-3.5 text-[#C85A32] shrink-0 mt-0.5" />
+                                  <span>{step.tip}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ADD-ON 1: ESSENTIAL COOKWARE & EQUIPMENT */}
+                {recipe.equipment && recipe.equipment.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center gap-2 pb-2 border-b border-[#E8E1D7]">
+                      <Utensils className="w-4 h-4 text-[#C85A32]" />
+                      <h3 className="font-serif text-lg font-bold text-[#231B15]">
+                        Essential Cookware & Equipment
+                      </h3>
+                      <span className="text-xs text-[#8E8277] ml-auto">
+                        Mise-en-place
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                      {recipe.equipment.map((item, idx) => (
+                        <div key={idx} className="p-3 rounded-xl bg-white border border-[#E8E1D7] flex items-center gap-2.5 shadow-xs text-xs font-medium text-[#231B15]">
+                          <div className="w-2 h-2 rounded-full bg-[#C85A32] shrink-0" />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ADD-ON 2: CHEF'S CULINARY SECRETS & PRO TIPS */}
+                {recipe.cookingTips && recipe.cookingTips.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center gap-2 pb-2 border-b border-[#E8E1D7]">
+                      <Sparkles className="w-4 h-4 text-[#C85A32]" />
+                      <h3 className="font-serif text-lg font-bold text-[#231B15]">
+                        Chef's Culinary Secrets & Pro Tips
+                      </h3>
+                    </div>
+                    <div className="space-y-2.5">
+                      {recipe.cookingTips.map((tip, idx) => (
+                        <div key={idx} className="p-3.5 rounded-xl bg-[#FBF7F0] border border-[#EADFCF] flex items-start gap-3 shadow-xs">
+                          <div className="p-1.5 rounded-lg bg-[#C85A32]/10 text-[#C85A32] shrink-0 mt-0.5">
+                            <Lightbulb className="w-4 h-4" />
+                          </div>
+                          <p className="text-xs sm:text-sm text-[#4A3D34] leading-relaxed">
+                            {tip}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ADD-ON 3: INGREDIENT SUBSTITUTIONS & PANTRY SWAPS */}
+                {recipe.substitutions && recipe.substitutions.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-[#E8E1D7]">
+                      <div className="flex items-center gap-2">
+                        <RotateCcw className="w-4 h-4 text-[#C85A32]" />
+                        <h3 className="font-serif text-lg font-bold text-[#231B15]">
+                          Ingredient Substitutions & Swaps
+                        </h3>
+                      </div>
+                      <button
+                        onClick={() => onOpenChefWithRecipe(recipe, `What substitutions can I use if I am missing ingredients for ${recipe.title}?`)}
+                        className="text-xs text-[#C85A32] hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Custom Swap with Chef</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {recipe.substitutions.map((sub, idx) => (
+                        <div key={idx} className="p-3.5 rounded-xl bg-white border border-[#E8E1D7] space-y-1.5 shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-[#231B15]">{sub.ingredient}</span>
+                            {sub.ratio && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#F4F0E8] text-[#5E5248]">
+                                Ratio: {sub.ratio}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-[#5C6B38] font-semibold">
+                            <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                            <span>Swap with: {sub.substitute}</span>
+                          </div>
+                          {sub.notes && (
+                            <p className="text-[11px] text-[#8E8277] italic pt-1 border-t border-[#F4F0E8]">
+                              {sub.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ADD-ON 4: SERVING SUGGESTIONS & PAIRINGS */}
+                {recipe.servingSuggestions && (
+                  <div className="p-4.5 rounded-xl bg-[#F7F4EE] border border-[#E8E1D7] space-y-2 shadow-xs">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-[#C85A32] flex items-center gap-1.5">
+                      <Utensils className="w-3.5 h-3.5" />
+                      <span>How to Serve & Traditional Accompaniments</span>
+                    </h4>
+                    <p className="text-xs sm:text-sm text-[#231B15] leading-relaxed">
+                      {recipe.servingSuggestions}
+                    </p>
+                  </div>
+                )}
+
+                {/* ADD-ON 5: STORAGE & REHEATING INSTRUCTIONS */}
+                {(recipe.storageInstructions || recipe.reheatingInstructions) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {recipe.storageInstructions && (
+                      <div className="p-4 rounded-xl bg-white border border-[#E8E1D7] space-y-1.5 shadow-xs">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-[#5E5248] flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#5C6B38]" />
+                          <span>Storage & Freshness</span>
+                        </h4>
+                        <p className="text-xs text-[#231B15] leading-relaxed">
+                          {recipe.storageInstructions}
+                        </p>
+                      </div>
+                    )}
+                    {recipe.reheatingInstructions && (
+                      <div className="p-4 rounded-xl bg-white border border-[#E8E1D7] space-y-1.5 shadow-xs">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-[#5E5248] flex items-center gap-1.5">
+                          <Flame className="w-3.5 h-3.5 text-[#C85A32]" />
+                          <span>Reheating Guidance</span>
+                        </h4>
+                        <p className="text-xs text-[#231B15] leading-relaxed">
+                          {recipe.reheatingInstructions}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ADD-ON 6: FREQUENTLY ASKED QUESTIONS (INTERACTIVE FAQ ACCORDION) */}
+                {recipe.faqs && recipe.faqs.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center gap-2 pb-2 border-b border-[#E8E1D7]">
+                      <HelpCircle className="w-4 h-4 text-[#C85A32]" />
+                      <h3 className="font-serif text-lg font-bold text-[#231B15]">
+                        Culinary Questions & Answers (FAQ)
+                      </h3>
+                      <span className="text-xs text-[#8E8277] ml-auto">
+                        {recipe.faqs.length} answered
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {recipe.faqs.map((faq, idx) => {
+                        const isOpen = openFaqIndices.has(idx);
+                        return (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-[#E8E1D7] bg-white overflow-hidden shadow-xs transition-all"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleFaq(idx)}
+                              className="w-full p-3.5 text-left flex items-center justify-between gap-3 hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-[#F4F0E8] text-[#5E5248] shrink-0 font-semibold">
+                                  {faq.category}
+                                </span>
+                                <span className="font-serif text-xs sm:text-sm font-semibold text-[#231B15]">
+                                  {faq.question}
+                                </span>
+                              </div>
+                              {isOpen ? (
+                                <ChevronUp className="w-4 h-4 text-[#8E8277] shrink-0" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-[#8E8277] shrink-0" />
+                              )}
+                            </button>
+                            {isOpen && (
+                              <div className="px-4 pb-3.5 pt-1 text-xs text-[#5E5248] leading-relaxed border-t border-[#F4F0E8] bg-[#FBF9F5]/60 animate-in fade-in duration-150">
+                                {faq.answer}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Bottom Actions Bar */}
             <div className="pt-4 border-t border-[#E8E1D7] flex flex-col sm:flex-row items-center justify-between gap-3">

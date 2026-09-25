@@ -82,80 +82,60 @@ class IndexedDBStorage {
     return `palate_place_${safeUid}_${keyName}`;
   }
 
-  // ---------------- RECIPES STORE ---------------- //
+  // ---------------- RECIPES STORE (STRICT USER SCOPING) ---------------- //
 
-  async saveRecipe(recipe: Recipe): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('recipes', 'readwrite');
-      const store = tx.objectStore('recipes');
-      const req = store.put(recipe);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
+  async saveRecipe(recipe: Recipe, uid?: string): Promise<void> {
+    if (recipe.isStarter) return; // Starters are static in memory
+    const safeUid = uid || 'guest';
+    await this.setUserData(safeUid, `downloaded_recipe_${recipe.recipeId}`, recipe);
   }
 
-  async saveRecipesBatch(recipes: Recipe[]): Promise<void> {
-    const db = await this.getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('recipes', 'readwrite');
-      const store = tx.objectStore('recipes');
-      for (const recipe of recipes) {
-        store.put(recipe);
-      }
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+  async saveRecipesBatch(recipes: Recipe[], uid?: string): Promise<void> {
+    const safeUid = uid || 'guest';
+    for (const recipe of recipes) {
+      await this.saveRecipe(recipe, safeUid);
+    }
   }
 
-  async getRecipe(recipeId: string): Promise<Recipe | undefined> {
-    // 1. First check Starter Recipes (instantly available)
+  async getRecipe(recipeId: string, uid?: string): Promise<Recipe | undefined> {
+    // 1. First check Starter Recipes (always free and available offline to everyone)
     const starter = ALL_STARTER_RECIPES.find(r => r.recipeId === recipeId);
     if (starter) return starter;
 
-    // 2. Check IndexedDB downloaded recipes
-    try {
-      const db = await this.getDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('recipes', 'readonly');
-        const store = tx.objectStore('recipes');
-        const req = store.get(recipeId);
-        req.onsuccess = () => resolve(req.result || undefined);
-        req.onerror = () => reject(req.error);
-      });
-    } catch {
+    // 2. Check user-scoped downloaded recipe (strictly scoped by UID to prevent cross-account leakage)
+    if (!uid || uid === 'guest') {
       return undefined;
     }
+
+    const downloadedIds = await this.getDownloadedRecipeIds(uid);
+    if (!downloadedIds.has(recipeId)) {
+      return undefined;
+    }
+
+    const userRecipe = await this.getUserData<Recipe | null>(uid, `downloaded_recipe_${recipeId}`, null);
+    if (userRecipe && userRecipe.ingredients && userRecipe.ingredients.length > 0) {
+      return userRecipe;
+    }
+
+    return undefined;
   }
 
-  async getAllDownloadedRecipes(): Promise<Recipe[]> {
-    try {
-      const db = await this.getDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('recipes', 'readonly');
-        const store = tx.objectStore('recipes');
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-    } catch {
+  async getAllDownloadedRecipes(uid?: string): Promise<Recipe[]> {
+    if (!uid || uid === 'guest') {
       return [];
     }
+    const ids = await this.getDownloadedRecipeIds(uid);
+    const recipes: Recipe[] = [];
+    for (const id of ids) {
+      const r = await this.getRecipe(id, uid);
+      if (r) recipes.push(r);
+    }
+    return recipes;
   }
 
-  async deleteRecipe(recipeId: string): Promise<void> {
-    try {
-      const db = await this.getDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction('recipes', 'readwrite');
-        const store = tx.objectStore('recipes');
-        const req = store.delete(recipeId);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-    } catch (err) {
-      console.warn('Failed to delete recipe from IndexedDB:', err);
-    }
+  async deleteRecipe(recipeId: string, uid?: string): Promise<void> {
+    const safeUid = uid || 'guest';
+    await this.setUserData(safeUid, `downloaded_recipe_${recipeId}`, null);
   }
 
   // ---------------- USER-SCOPED DATA ---------------- //
@@ -208,15 +188,18 @@ class IndexedDBStorage {
   }
 
   async recordRecipeDownload(uid: string, recipe: Recipe): Promise<void> {
-    // 1. Save full recipe object to IndexedDB
-    await this.saveRecipe(recipe);
+    // 1. Save user-scoped recipe data
+    await this.setUserData(uid, `downloaded_recipe_${recipe.recipeId}`, recipe);
 
-    // 2. Update user's downloaded IDs set
+    // 2. Save full recipe object to user-scoped storage
+    await this.saveRecipe(recipe, uid);
+
+    // 3. Update user's downloaded IDs set
     const ids = await this.getDownloadedRecipeIds(uid);
     ids.add(recipe.recipeId);
     await this.setUserData(uid, 'downloads', Array.from(ids));
 
-    // 3. Cache image in Cache Storage if supported
+    // 4. Cache image in Cache Storage if supported
     if (recipe.image && typeof caches !== 'undefined') {
       try {
         const imgCache = await caches.open('palate-place-images-v1');
@@ -228,10 +211,13 @@ class IndexedDBStorage {
   }
 
   async removeRecipeDownload(uid: string, recipeId: string): Promise<void> {
-    // 1. Remove recipe object from IndexedDB
-    await this.deleteRecipe(recipeId);
+    // 1. Remove user-scoped recipe copy
+    await this.setUserData(uid, `downloaded_recipe_${recipeId}`, null);
 
-    // 2. Remove from user downloads
+    // 2. Remove user-scoped recipe copy
+    await this.deleteRecipe(recipeId, uid);
+
+    // 3. Remove from user downloads
     const ids = await this.getDownloadedRecipeIds(uid);
     ids.delete(recipeId);
     await this.setUserData(uid, 'downloads', Array.from(ids));

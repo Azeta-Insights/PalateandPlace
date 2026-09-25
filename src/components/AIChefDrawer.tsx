@@ -291,7 +291,7 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-serif font-bold text-base text-[#231B15] truncate">
-                  AI Culinary Mentor
+                  Ask Your Chef
                 </h3>
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#F2F5EC] text-[#5C6B38] border border-[#D5DEBF] shrink-0">
                   Ready
@@ -327,9 +327,9 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-[#C85A32]" />
             <span>
               {isPremiumUser ? (
-                <><strong>{remainingMonthly}</strong> mentor questions remaining this month</>
+                <>AI Chef fair-use: <strong>{remainingMonthly}</strong> responses remaining this month (10/day max)</>
               ) : (
-                <>Free starter: <strong>{remainingMonthly} of 5</strong> questions remaining</>
+                <>Free trial: <strong>{remainingMonthly} of 5</strong> AI responses remaining · Local tools unlimited</>
               )}
             </span>
           </div>
@@ -337,12 +337,12 @@ export const AIChefDrawer: React.FC<AIChefDrawerProps> = ({
           {!isPremiumUser ? (
             <button
               onClick={onOpenUnlockModal}
-              className="text-[#C85A32] hover:underline font-semibold text-xs"
+              className="text-[#C85A32] hover:underline font-semibold text-xs shrink-0"
             >
               Unlock 100/mo
             </button>
           ) : (
-            <span className="text-[11px] text-[#5C6B38] font-medium">World Pass</span>
+            <span className="text-[11px] text-[#5C6B38] font-medium shrink-0">World Pass</span>
           )}
         </div>
 

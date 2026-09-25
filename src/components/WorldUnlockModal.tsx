@@ -21,12 +21,10 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { user, isPremium, requestTestPremium, devFastUnlockPremium, applyEntitlement } = useAuth();
+  const { user, isPremium, devFastUnlockPremium, applyEntitlement } = useAuth();
   const [loadingPaystack, setLoadingPaystack] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [testRequestSuccess, setTestRequestSuccess] = useState('');
-  const [testerName, setTesterName] = useState('');
-  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
   // 1. Keyboard Escape to close modal smoothly
   useEffect(() => {
@@ -99,24 +97,6 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
         setErrorMessage(typeof err === 'string' ? err : 'Payment initiation failed');
       }
     );
-  };
-
-  const handleRequestTest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      setErrorMessage('Please sign in first to request reviewer access.');
-      return;
-    }
-
-    setIsSubmittingRequest(true);
-    const res = await requestTestPremium(testerName);
-    setIsSubmittingRequest(false);
-
-    if (res.success) {
-      setTestRequestSuccess(res.message);
-    } else {
-      setErrorMessage(res.message);
-    }
   };
 
   const handleDevQuickUnlock = async () => {
@@ -248,42 +228,6 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
                 <ArrowLeft className="w-4 h-4" />
                 <span>Return to Global Cookbook (Keep Browsing)</span>
               </button>
-
-              {/* Reviewer Invitation */}
-              <div className="pt-4 border-t border-[#E8E1D7]">
-                <p className="text-xs text-[#8E8277] text-center mb-3">
-                  Are you a culinary reviewer or guest partner?
-                </p>
-
-                <form onSubmit={handleRequestTest} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={testerName}
-                    onChange={(e) => setTesterName(e.target.value)}
-                    placeholder="Your Name (e.g. Alex - Reviewer)"
-                    className="flex-1 py-2.5 px-3.5 rounded-xl bg-white border border-[#E8E1D7] text-xs text-[#231B15] placeholder-[#8E8277] focus:outline-none focus:border-[#231B15]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSubmittingRequest}
-                    className="px-4 py-2.5 rounded-xl bg-[#F4F0E8] hover:bg-[#EAE4D9] text-[#231B15] border border-[#E8E1D7] text-xs font-semibold whitespace-nowrap shadow-sm"
-                  >
-                    Request Review Access
-                  </button>
-                </form>
-              </div>
-
-              {/* Curator Access */}
-              {user?.email?.toLowerCase() === 'blessing.waydiva@gmail.com' && (
-                <div className="pt-2 text-center">
-                  <button
-                    onClick={handleDevQuickUnlock}
-                    className="text-xs text-[#C85A32] underline hover:text-[#A83E20] font-sans"
-                  >
-                    Direct Curator Activation (Unlock All Features)
-                  </button>
-                </div>
-              )}
             </div>
           ) : (
             <div className="p-4 rounded-2xl bg-[#F2F5EC] border border-[#D5DEBF] text-center space-y-3">

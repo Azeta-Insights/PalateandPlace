@@ -14,11 +14,20 @@ export const ALL_STARTER_RECIPES: Recipe[] = [
 // All Premium Recipe Summaries (Metadata for browsing/filtering without leaking full recipe data)
 export const ALL_PREMIUM_RECIPES: Recipe[] = generatePremiumSummaries();
 
-// Total Cookbook (300+ recipes across 50+ countries)
+// Total Cookbook (Derived dynamically from catalog)
 export const ALL_RECIPES: Recipe[] = [
   ...ALL_STARTER_RECIPES,
   ...ALL_PREMIUM_RECIPES
 ];
+
+// Single source of truth for all catalog counts across the app
+export const catalogStats = {
+  recipeCount: ALL_RECIPES.length,
+  starterCount: ALL_STARTER_RECIPES.length,
+  premiumCount: ALL_PREMIUM_RECIPES.length,
+  countryCount: new Set(ALL_RECIPES.map((r) => r.country)).size,
+  continentCount: new Set(ALL_RECIPES.map((r) => r.continent)).size
+};
 
 // Fast in-memory lookup map
 const RECIPES_BY_ID = new Map<string, Recipe>(

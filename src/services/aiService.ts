@@ -1,5 +1,6 @@
+import { auth } from '../firebase/config';
 import { Recipe, UserProfile } from '../types/recipe';
-import { evaluateLocalCookingQuery, LocalIntelligenceResult } from './localIntelligence';
+import { evaluateLocalCookingQuery } from './localIntelligence';
 
 export interface ChefResponse {
   handledLocally: boolean;
@@ -15,12 +16,12 @@ export class AIChefService {
   static async askChef(
     question: string,
     recipe?: Recipe,
-    userProfile?: UserProfile | null,
+    _userProfile?: UserProfile | null,
     downloadedIds: Set<string> = new Set(),
     isOnline: boolean = navigator.onLine,
     conversationHistory: any[] = []
   ): Promise<ChefResponse> {
-    // 1. Check Local Cooking Intelligence FIRST
+    // 1. Check Local Cooking Intelligence FIRST (conversions, timers, offline guides)
     const localResult = evaluateLocalCookingQuery(question, recipe, downloadedIds);
     if (localResult) {
       return {
@@ -32,41 +33,42 @@ export class AIChefService {
       };
     }
 
-    // 2. If requiring natural-language reasoning but device is OFFLINE
+    // 2. If user is not authenticated, prompt to sign in (P0-3)
+    if (!auth.currentUser) {
+      return {
+        handledLocally: true,
+        category: 'auth_required',
+        title: 'Account Required for AI Chef',
+        response: 'Create an account to use AI Chef.\n\nGood news: Local recipe scaling, step timers, conversions, and ingredient substitutions remain 100% free and unlimited!'
+      };
+    }
+
+    // 3. If requiring natural-language reasoning but device is OFFLINE
     if (!isOnline) {
       return {
         handledLocally: true,
         category: 'offline',
         title: 'Offline Mode Notice',
-        response: `📡 **Chef requires an internet connection** to answer new cooking questions.\n\nGood news: Your saved recipes, serving adjustments (like "make for 4"), kitchen timers, and ingredient swap guides work completely offline!`
+        response: `📡 **AI Chef requires an internet connection** to answer open-ended questions.\n\nGood news: Your saved recipes, serving adjustments (like "make for 4"), kitchen timers, and ingredient swap guides work completely offline!`
       };
     }
 
-    // 3. Online: Call backend server endpoint with recipe context
+    // 4. Online: Call canonical backend server endpoint with verified auth token
     try {
+      const token = await auth.currentUser.getIdToken();
+
       const payload = {
-        userId: userProfile?.uid,
-        userEntitlement: userProfile?.entitlement?.tier || 'free',
-        currentUsage: userProfile?.aiUsage || { totalCount: 0, rollingCount: 0, todayCount: 0 },
         recipeId: recipe?.recipeId,
         userQuestion: question,
-        recipeContext: recipe ? {
-          title: recipe.title,
-          country: recipe.country,
-          continent: recipe.continent,
-          servings: recipe.servings,
-          ingredients: recipe.ingredients,
-          preparationSteps: recipe.preparationSteps,
-          substitutions: recipe.substitutions,
-          cookingTips: recipe.cookingTips,
-          spiceLevel: recipe.spiceLevel
-        } : undefined,
         conversationHistory
       };
 
       const res = await fetch('/api/ai/ask-chef', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(payload)
       });
 
@@ -86,14 +88,13 @@ export class AIChefService {
       }
 
       return {
-        handledLocally: false,
+        handledLocally: !data.handledByGemini,
         category: data.category || 'general',
         response: data.response,
-        remainingThisMonth: data.remainingThisMonth
+        remainingThisMonth: data.usage?.remainingMonth
       };
     } catch (err: any) {
-      console.warn('Chef service connecting with local culinary intelligence:', err?.message || err);
-      // Fallback with recipe advice if available
+      console.warn('Chef service connecting with local culinary intelligence fallback:', err?.message || err);
       let fallbackText = 'Chef is ready! You can adjust recipe servings, check substitutions, or start a cooking timer above anytime.';
       if (recipe) {
         if (recipe.cookingTips && recipe.cookingTips.length > 0) {

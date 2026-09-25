@@ -1,6 +1,6 @@
-// Service Worker for Palate & Place (Offline shell & recipe image caching)
-const SHELL_CACHE = 'palate-place-shell-v2';
-const IMAGE_CACHE = 'palate-place-images-v2';
+// Service Worker for Palate & Place (Offline shell, JS/CSS bundles & recipe image caching)
+const SHELL_CACHE = 'palate-place-shell-v3';
+const IMAGE_CACHE = 'palate-place-images-v3';
 
 const SHELL_ASSETS = [
   '/',
@@ -70,10 +70,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation and asset requests: Network first with cache fallback
+  // Navigation, JS/CSS assets, and fonts: Network first, reliably updating cache for true cold-start offline boots
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const resClone = networkResponse.clone();
+          caches.open(SHELL_CACHE).then((cache) => {
+            cache.put(event.request, resClone);
+          });
+        }
         return networkResponse;
       })
       .catch(async () => {

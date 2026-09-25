@@ -24,12 +24,14 @@ export interface KitchenContextType {
   passport: Record<string, PassportCountry>;
   shoppingList: ShoppingItem[];
   downloadedRecipeIds: Set<string>;
+  viewedIds: string[];
+  searchHistory: string[];
   toggleFavorite: (recipeId: string) => Promise<void>;
   recordCookedRecipe: (
     record: Omit<CookingRecord, 'id' | 'cookedAt'>,
     photoFile?: File | Blob
   ) => Promise<void>;
-  addToShoppingList: (recipe: Recipe) => void;
+  addToShoppingList: (recipeOrItems: Recipe | ShoppingItem[]) => void;
   toggleShoppingItem: (id: string) => void;
   removeShoppingItem: (id: string) => void;
   clearCompletedShopping: () => void;
@@ -37,36 +39,62 @@ export interface KitchenContextType {
   removeDownloadedRecipe: (recipeId: string) => Promise<void>;
   downloadAllPremiumRecipes: (recipeIds: string[]) => Promise<number>;
   getFullRecipeForView: (recipeId: string) => Promise<Recipe | undefined>;
+  recordRecipeView: (recipeId: string) => void;
+  recordSearchQuery: (query: string) => void;
   syncOfflineData: () => Promise<void>;
 }
 
 const KitchenContext = createContext<KitchenContextType | undefined>(undefined);
 
 export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isOnline } = useAuth();
+  const { user, isOnline, isPremium, isAdmin } = useAuth();
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [cookingHistory, setCookingHistory] = useState<CookingRecord[]>([]);
   const [passport, setPassport] = useState<Record<string, PassportCountry>>({});
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [downloadedRecipeIds, setDownloadedRecipeIds] = useState<Set<string>>(new Set());
+  const [viewedIds, setViewedIds] = useState<string[]>([]);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   // Load user data from IndexedDB upon user change (Strict UID Isolation)
   const loadUserDataFromIndexedDB = useCallback(async (uid: string) => {
     try {
-      const [favArray, passMap, shopArray, histArray, dlIds] = await Promise.all([
+      const [favArray, passMap, shopArray, histArray, dlIds, views, searches] = await Promise.all([
         indexedDbStorage.getUserData<string[]>(uid, 'favorites', []),
         indexedDbStorage.getUserData<Record<string, PassportCountry>>(uid, 'passport', {}),
         indexedDbStorage.getUserData<ShoppingItem[]>(uid, 'shopping', []),
         indexedDbStorage.getUserData<CookingRecord[]>(uid, 'history', []),
-        indexedDbStorage.getDownloadedRecipeIds(uid)
+        indexedDbStorage.getDownloadedRecipeIds(uid),
+        indexedDbStorage.getUserData<string[]>(uid, 'viewed_recipes', []),
+        indexedDbStorage.getUserData<string[]>(uid, 'searches', [])
       ]);
+
+      // Re-hydrate local photo blob URLs if needed (survives reload)
+      const pendingPhotos = await indexedDbStorage.getPendingPhotos(uid);
+      const photoBlobMap = new Map(pendingPhotos.map(p => [p.photoId, p.blob]));
+
+      const hydratedHistory = histArray.map((item) => {
+        if (item.photoRefId && photoBlobMap.has(item.photoRefId)) {
+          const blob = photoBlobMap.get(item.photoRefId);
+          if (blob) {
+            return {
+              ...item,
+              photoUrl: URL.createObjectURL(blob),
+              photoUploadStatus: 'local' as const
+            };
+          }
+        }
+        return item;
+      });
 
       setFavorites(new Set(favArray));
       setPassport(passMap);
       setShoppingList(shopArray);
-      setCookingHistory(histArray);
+      setCookingHistory(hydratedHistory);
       setDownloadedRecipeIds(dlIds);
+      setViewedIds(views);
+      setSearchHistory(searches);
     } catch (err) {
       console.warn('Error loading user kitchen data from IndexedDB:', err);
     }
@@ -92,8 +120,18 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
       histSnap.forEach(d => historyList.push(d.data() as CookingRecord));
       historyList.sort((a, b) => new Date(b.cookedAt).getTime() - new Date(a.cookedAt).getTime());
       if (historyList.length > 0) {
-        setCookingHistory(historyList);
-        await indexedDbStorage.setUserData(uid, 'history', historyList);
+        setCookingHistory((prev) => {
+          // Merge with any local pending photo URLs
+          const merged = historyList.map(h => {
+            const existing = prev.find(p => p.id === h.id);
+            if (existing && existing.photoUrl && !h.photoUrl) {
+              return { ...h, photoUrl: existing.photoUrl, photoRefId: existing.photoRefId };
+            }
+            return h;
+          });
+          indexedDbStorage.setUserData(uid, 'history', merged);
+          return merged;
+        });
       }
 
       // 3. Passport
@@ -108,7 +146,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         await indexedDbStorage.setUserData(uid, 'passport', passMap);
       }
     } catch (err) {
-      console.warn('Error loading user subcollections from Firestore:', err);
+      console.warn('Error fetching Firestore subcollections:', err);
     }
   }, []);
 
@@ -120,6 +158,24 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // 1. Sync pending meal photos
       const uploadedPhotos = await PhotoStorageService.syncPendingPhotos(user.uid);
 
+      // Reconcile active history with uploaded URLs
+      if (Object.keys(uploadedPhotos).length > 0) {
+        setCookingHistory((prev) => {
+          const updated = prev.map((item) => {
+            if (item.photoRefId && uploadedPhotos[item.photoRefId]) {
+              return {
+                ...item,
+                photoUrl: uploadedPhotos[item.photoRefId],
+                photoUploadStatus: 'uploaded' as const
+              };
+            }
+            return item;
+          });
+          indexedDbStorage.setUserData(user.uid, 'history', updated).catch(() => {});
+          return updated;
+        });
+      }
+
       // 2. Sync pending mutations from IndexedDB queue
       const pendingMutations = await indexedDbStorage.getPendingMutations(user.uid);
       if (pendingMutations.length === 0) return;
@@ -129,8 +185,9 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         try {
           if (mut.type === 'cooking_record') {
             const record = mut.payload as CookingRecord;
-            if (record.id && uploadedPhotos[record.id]) {
-              record.photoUrl = uploadedPhotos[record.id];
+            if (record.photoRefId && uploadedPhotos[record.photoRefId]) {
+              record.photoUrl = uploadedPhotos[record.photoRefId];
+              record.photoUploadStatus = 'uploaded';
             }
             const historyRef = doc(db, 'users', user.uid, 'cookingHistory', record.id);
             await setDoc(historyRef, record, { merge: true });
@@ -146,6 +203,9 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
             } else {
               await deleteDoc(favRef);
             }
+          } else if (mut.type === 'preference_update') {
+            const userRef = doc(db, 'users', user.uid);
+            await setDoc(userRef, { preferences: mut.payload, updatedAt: new Date().toISOString() }, { merge: true });
           }
           syncedIds.push(mut.id);
         } catch (e) {
@@ -238,6 +298,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const recordId = `cook-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
     let finalPhotoUrl = recordData.photoUrl;
+    let photoRefId: string | undefined;
+    let photoUploadStatus: 'local' | 'uploading' | 'uploaded' = 'uploaded';
 
     if (photoFile) {
       try {
@@ -248,6 +310,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
           isOnline
         );
         finalPhotoUrl = photoResult.photoUrl;
+        photoRefId = photoResult.photoRefId;
+        photoUploadStatus = photoResult.photoUploadStatus;
       } catch (err) {
         console.warn('Photo processing error:', err);
       }
@@ -257,6 +321,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ...recordData,
       id: recordId,
       photoUrl: finalPhotoUrl,
+      photoRefId,
+      photoUploadStatus,
       cookedAt: new Date().toISOString()
     };
 
@@ -323,19 +389,26 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Shopping List Actions
-  const addToShoppingList = (recipe: Recipe) => {
+  // Shopping List Actions (Unified IndexedDB pipeline)
+  const addToShoppingList = (recipeOrItems: Recipe | ShoppingItem[]) => {
     const uid = user?.uid || 'guest';
-    const newItems: ShoppingItem[] = recipe.ingredients.map(ing => ({
-      id: `shop-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-      recipeId: recipe.recipeId,
-      recipeTitle: recipe.title,
-      name: ing.name,
-      amount: ing.amount,
-      unit: ing.unit,
-      checked: false,
-      createdAt: new Date().toISOString()
-    }));
+    let newItems: ShoppingItem[] = [];
+
+    if (Array.isArray(recipeOrItems)) {
+      newItems = recipeOrItems;
+    } else if (recipeOrItems.ingredients) {
+      newItems = recipeOrItems.ingredients.map(ing => ({
+        id: `shop-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        recipeId: recipeOrItems.recipeId,
+        recipeTitle: recipeOrItems.title,
+        name: ing.name,
+        amount: ing.amount,
+        unit: ing.unit,
+        checked: false,
+        category: 'Pantry & Market',
+        createdAt: new Date().toISOString()
+      }));
+    }
 
     const updated = [...newItems, ...shoppingList];
     setShoppingList(updated);
@@ -365,27 +438,61 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     indexedDbStorage.setUserData(uid, 'shopping', filtered);
   };
 
-  // Recipe viewing and offline downloads
-  const getFullRecipeForView = async (recipeId: string): Promise<Recipe | undefined> => {
+  // Record Recipe View for personalization telemetry (guarded against re-render loops)
+  const recordRecipeView = useCallback((recipeId: string) => {
+    if (!recipeId) return;
+    const uid = user?.uid || 'guest';
+    setViewedIds((prev) => {
+      if (prev.length > 0 && prev[0] === recipeId) return prev;
+      const filtered = prev.filter(id => id !== recipeId);
+      const next = [recipeId, ...filtered].slice(0, 30);
+      indexedDbStorage.setUserData(uid, 'viewed_recipes', next).catch(() => {});
+      return next;
+    });
+  }, [user]);
+
+  // Record Search Query for personalization telemetry
+  const recordSearchQuery = useCallback((queryText: string) => {
+    const q = queryText.trim().toLowerCase();
+    if (!q) return;
+    const uid = user?.uid || 'guest';
+    setSearchHistory((prev) => {
+      const filtered = prev.filter(item => item !== q);
+      const next = [q, ...filtered].slice(0, 20);
+      indexedDbStorage.setUserData(uid, 'searches', next).catch(() => {});
+      return next;
+    });
+  }, [user]);
+
+  // Recipe viewing and offline downloads (memoized to prevent render loops)
+  const getFullRecipeForView = useCallback(async (recipeId: string): Promise<Recipe | undefined> => {
     // 1. Check starter recipes
     const starter = ALL_STARTER_RECIPES.find(r => r.recipeId === recipeId);
     if (starter) return starter;
 
-    // 2. Check IndexedDB cached/downloaded recipes
-    const localRecipe = await indexedDbStorage.getRecipe(recipeId);
+    // 2. Check IndexedDB cached/downloaded recipes (scoped by UID)
+    const localRecipe = await indexedDbStorage.getRecipe(recipeId, user?.uid);
     if (localRecipe && localRecipe.ingredients && localRecipe.ingredients.length > 0) {
       return localRecipe;
     }
 
     // 3. If online: fetch from server
-    if (navigator.onLine) {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
       try {
-        const uid = user?.uid || '';
-        const res = await fetch(`/api/recipes?id=${encodeURIComponent(recipeId)}&userId=${encodeURIComponent(uid)}`);
+        const token = user ? await user.getIdToken().catch(() => '') : '';
+        const res = await fetch(
+          `/api/recipes?id=${encodeURIComponent(recipeId)}`,
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          }
+        );
         if (res.ok) {
           const data = await res.json();
           if (data.recipe) {
-            await indexedDbStorage.saveRecipe(data.recipe);
+            // Save in user-scoped downloads if downloaded
+            if (user && downloadedRecipeIds.has(recipeId)) {
+              await indexedDbStorage.recordRecipeDownload(user.uid, data.recipe);
+            }
             return data.recipe;
           }
         }
@@ -395,7 +502,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     return undefined;
-  };
+  }, [user, downloadedRecipeIds]);
 
   const downloadRecipe = async (recipeOrId: Recipe | string): Promise<boolean> => {
     const uid = user?.uid || 'guest';
@@ -410,7 +517,9 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
 
-    if (!fullRecipe) return false;
+    if (!fullRecipe || !fullRecipe.ingredients || fullRecipe.ingredients.length === 0) {
+      return false;
+    }
 
     await indexedDbStorage.recordRecipeDownload(uid, fullRecipe);
     const updatedIds = await indexedDbStorage.getDownloadedRecipeIds(uid);
@@ -429,10 +538,14 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!user) return 0;
 
     try {
+      const token = await user.getIdToken();
       const res = await fetch('/api/recipes/download-batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.uid, recipeIds })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ recipeIds })
       });
 
       if (!res.ok) throw new Error('Download batch failed');
@@ -440,12 +553,11 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const data = await res.json();
       const recipes: Recipe[] = data.recipes || [];
 
-      await indexedDbStorage.saveRecipesBatch(recipes);
+      for (const recipe of recipes) {
+        await indexedDbStorage.recordRecipeDownload(user.uid, recipe);
+      }
 
       const dlSet = await indexedDbStorage.getDownloadedRecipeIds(user.uid);
-      recipes.forEach(r => dlSet.add(r.recipeId));
-      await indexedDbStorage.setUserData(user.uid, 'downloads', Array.from(dlSet));
-
       setDownloadedRecipeIds(dlSet);
       return recipes.length;
     } catch (err) {
@@ -462,6 +574,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         passport,
         shoppingList,
         downloadedRecipeIds,
+        viewedIds,
+        searchHistory,
         toggleFavorite,
         recordCookedRecipe,
         addToShoppingList,
@@ -472,6 +586,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
         removeDownloadedRecipe,
         downloadAllPremiumRecipes,
         getFullRecipeForView,
+        recordRecipeView,
+        recordSearchQuery,
         syncOfflineData
       }}
     >

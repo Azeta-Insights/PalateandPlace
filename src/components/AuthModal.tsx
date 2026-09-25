@@ -8,7 +8,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } = useAuth();
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, checkAndActivateReviewerEmail } = useAuth();
   
   const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
   const [name, setName] = useState('');

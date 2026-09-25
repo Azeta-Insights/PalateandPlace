@@ -66,7 +66,7 @@ export class PhotoStorageService {
     uid: string,
     recipeId: string,
     isOnline: boolean = navigator.onLine
-  ): Promise<{ photoUrl: string; pendingUploadId?: string }> {
+  ): Promise<{ photoUrl: string; photoRefId: string; photoUploadStatus: 'local' | 'uploaded' }> {
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
     const compressedBlob = await this.compressImage(file);
 
@@ -83,7 +83,8 @@ export class PhotoStorageService {
       const localBlobUrl = URL.createObjectURL(compressedBlob);
       return {
         photoUrl: localBlobUrl,
-        pendingUploadId: photoId
+        photoRefId: photoId,
+        photoUploadStatus: 'local'
       };
     }
 
@@ -105,7 +106,9 @@ export class PhotoStorageService {
       const downloadUrl = await getDownloadURL(photoRef);
 
       return {
-        photoUrl: downloadUrl
+        photoUrl: downloadUrl,
+        photoRefId: photoId,
+        photoUploadStatus: 'uploaded'
       };
     } catch (err) {
       console.warn('Direct Cloud Storage upload failed, enqueuing offline photo:', err);
@@ -121,7 +124,8 @@ export class PhotoStorageService {
       const localBlobUrl = URL.createObjectURL(compressedBlob);
       return {
         photoUrl: localBlobUrl,
-        pendingUploadId: photoId
+        photoRefId: photoId,
+        photoUploadStatus: 'local'
       };
     }
   }

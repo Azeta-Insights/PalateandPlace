@@ -11,4 +11,11 @@ const adminApp = getApps().length > 0
 
 export const adminAuth = getAuth(adminApp);
 export const adminDb = getFirestore(adminApp, firebaseAppletConfig.firestoreDatabaseId);
+
+try {
+  adminDb.settings({ ignoreUndefinedProperties: true });
+} catch {
+  // Already initialized settings
+}
+
 export default adminApp;

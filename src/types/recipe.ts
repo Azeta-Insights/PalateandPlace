@@ -85,7 +85,9 @@ export interface CookingRecord {
   servingsCooked?: number;
   rating: number; // 1 - 5
   notes?: string;
-  photoUrl?: string; // base64 or storage url
+  photoUrl?: string; // base64, storage url, or blob object url
+  photoRefId?: string; // photoId matching pending_photos in IndexedDB
+  photoUploadStatus?: 'local' | 'uploading' | 'uploaded';
   cookedAt: string; // ISO date string
   synced?: boolean;
 }
@@ -114,7 +116,7 @@ export interface ShoppingItem {
 
 export interface UserEntitlement {
   tier: 'free' | 'premium' | 'test_premium';
-  source: 'default' | 'purchase' | 'test' | 'dev' | 'direct_grant' | 'reviewer_pass';
+  source: 'default' | 'purchase' | 'test' | 'dev' | 'direct_grant' | 'reviewer_pass' | 'revoked';
   unlockedAt?: string;
   paystackReference?: string;
   validUntil?: string;

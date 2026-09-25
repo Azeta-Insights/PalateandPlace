@@ -27,11 +27,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
   const isOfflineReady = recipe.isStarter || isDownloaded;
 
   const handleClick = () => {
-    if (isLocked && onOpenUnlockModal) {
-      onOpenUnlockModal();
-    } else {
-      onSelect(recipe);
-    }
+    onSelect(recipe);
   };
 
   return (
@@ -39,7 +35,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
       onClick={handleClick}
       className={`group relative bg-[#FFFDF8] rounded-xl border transition-all duration-200 overflow-hidden cursor-pointer flex flex-col ${
         isLocked
-          ? 'border-[#E6DEC8] hover:border-[#B85C3A]/40 shadow-xs'
+          ? 'border-[#E6DEC8] hover:border-[#B85C3A]/60 hover:shadow-md hover:-translate-y-0.5 shadow-xs'
           : 'border-[#E6DEC8] hover:border-[#29231E]/40 hover:shadow-md hover:-translate-y-0.5 shadow-xs'
       }`}
     >
@@ -108,10 +104,19 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({
               <span>Starter Dish</span>
             </span>
           ) : isLocked ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#29231E]/90 text-[#D3C7B5] border border-[#B18A58]/40 text-[10px] font-medium shadow-xs backdrop-blur-xs font-sans">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenUnlockModal) onOpenUnlockModal();
+                else onSelect(recipe);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-[#29231E]/95 hover:bg-[#3D322A] text-[#E8DAB7] border border-[#B18A58]/50 text-[10px] font-medium shadow-xs backdrop-blur-xs font-sans pointer-events-auto transition-all cursor-pointer"
+              title="World Pass Exclusive - Click to unlock all recipes"
+            >
               <Lock className="w-3 h-3 text-[#B18A58]" />
               <span>World Pass</span>
-            </span>
+            </button>
           ) : (
             <span className="text-[11px] font-medium text-white/90 drop-shadow-xs font-sans">
               {recipe.mealType}

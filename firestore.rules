@@ -3,106 +3,114 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if user is authenticated
+    // Global Safety Net: Default-deny all unmapped paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check if user owns the document
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Helper function to check if user is the curator/admin
     function isAdmin() {
       return isAuthenticated() && (
-        request.auth.token.email == 'blessing.waydiva@gmail.com' ||
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'blessing.waydiva@gmail.com') ||
         request.auth.token.admin == true
       );
     }
 
-    // Entitlements: Server-authoritative, readable by owner (by UID or email) or admin
+    // Entitlements: Never writable by regular users.
+    // Only backend Firebase Admin SDK or verified administrators can modify entitlements.
     match /entitlements/{docId} {
-      allow read: if isAuthenticated() && (
-        request.auth.uid == docId || 
-        (request.auth.token.email != null && request.auth.token.email == docId) ||
-        isAdmin()
-      );
+      allow read: if isOwner(docId) || isAdmin();
       allow write: if isAdmin();
     }
 
-    // Payment Records: Read by purchaser or admin, write only by admin/server
+    // User profiles & cooking preferences:
+    // Clients can never escalate their entitlement tier or grant themselves premium.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // On creation, entitlement must be free tier if provided
+      allow create: if isOwner(userId) && (
+        !('entitlement' in request.resource.data) ||
+        request.resource.data.entitlement.tier == 'free' ||
+        request.resource.data.entitlement.tier == 'FREE'
+      );
+      
+      // On update, users can update preferences, cooking state, etc., but CANNOT modify entitlement or admin fields
+      allow update: if isOwner(userId) && (
+        isAdmin() ||
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['entitlement', 'isAdmin', 'role', 'admin'])
+      );
+      
+      allow delete: if isOwner(userId) || isAdmin();
+
+      // Explicitly scoped user subcollections
+      match /favorites/{recipeId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /cookingHistory/{historyId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /shoppingLists/{itemId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /passport/{countryCode} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /preferences/{prefId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /personalization/{sigId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Payment Records: Managed and recorded exclusively by server-side verification
     match /payments/{paymentId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
     }
 
-    // AI Quota & Fair-Use Tracking
+    // AI Quota & Fair-Use Tracking: Authoritative server-side transaction tracking
     match /aiUsage/{usageId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
     }
 
-    // User profile document and personal cooking journal
-    match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
-      // Users cannot directly grant themselves premium in profile; entitlement is server-controlled
-      allow update: if isAdmin() || (
-        isOwner(userId) && (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['entitlement']) ||
-          request.resource.data.entitlement == resource.data.entitlement
-        )
-      );
-      allow delete: if isOwner(userId) || isAdmin();
-
-      // Scoped Subcollections
-      match /favorites/{recipeId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /cookingHistory/{historyId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /passport/{countryCode} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /shoppingList/{itemId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /downloads/{recipeId} {
-        allow read, write: if isOwner(userId);
-      }
-    }
-
-    // Premium Reviewer Requests
+    // Premium Reviewer Requests:
+    // Submitted via verified backend endpoint; users can only read their own request status.
     match /premiumRequests/{requestId} {
-      allow create: if isAuthenticated();
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
-        (request.auth.token.email != null && resource.data.email == request.auth.token.email) ||
-        isAdmin()
-      );
-      allow update, delete: if isAdmin();
-    }
-
-    // Recipe question insights (aggregated & curated)
-    match /recipeInsights/{recipeId} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
       allow write: if isAdmin();
     }
 
-    // Rate limits (tracking for serverless AI endpoints)
-    match /rateLimits/{limitId} {
-      allow read, write: if true;
+    // Recipe question insights (curated culinary knowledge & aggregate question analytics) - Admin only
+    match /recipeInsights/{recipeId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // Admin Logs
+    // Admin audit and error logs
     match /adminLogs/{logId} {
       allow read, write: if isAdmin();
+    }
+
+    // Explicitly lock down any deprecated /rateLimits path
+    match /rateLimits/{limitId} {
+      allow read, write: if false;
     }
   }
 }

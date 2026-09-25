@@ -35,18 +35,24 @@ export class PaystackService {
     onError: (err: string) => void
   ): Promise<void> {
     try {
-      // 1. Request initialization from backend API
+      if (!idToken) {
+        onError('Please sign in before completing checkout so your lifetime pass is securely linked to your account.');
+        return;
+      }
+
+      // 1. Request initialization from backend API with verified token
       const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+          Authorization: `Bearer ${idToken}`
         },
-        body: JSON.stringify({ email: userEmail, userId })
+        body: JSON.stringify({})
       });
 
       if (!res.ok) {
-        throw new Error('Could not initiate payment session with server.');
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Could not initiate payment session with server.');
       }
 
       const initData = await res.json();
@@ -63,9 +69,9 @@ export class PaystackService {
         try {
           const handler = window.PaystackPop.setup({
             key: rawKey,
-            email: userEmail || 'customer@palateandplace.app',
+            email: initData.email || userEmail || 'customer@palateandplace.app',
             amount: initData.amount || 250000,
-            currency: 'NGN',
+            currency: initData.currency || 'NGN',
             ref: initData.reference,
             metadata: initData.metadata,
             callback: function (response: { reference: string }) {
@@ -87,7 +93,6 @@ export class PaystackService {
           onError('Error opening Paystack checkout: ' + (setupErr.message || 'Please retry.'));
         }
       } else {
-        // If live Paystack keys are not yet configured in this deployment environment:
         onError(
           'Paystack live payment gateway is not yet configured with a valid Public Key in this environment. If you are testing or reviewing, please use the "Request Reviewer Pass" button to unlock full access.'
         );
@@ -100,19 +105,20 @@ export class PaystackService {
 
   public static async verifyAndGrantEntitlement(
     reference: string,
-    userId: string,
+    _userId: string,
     idToken: string,
     onSuccess: (result: PaymentSuccessResult) => void,
     onError: (err: string) => void
   ): Promise<void> {
     try {
+      // Backend securely verifies with Paystack and persists entitlement server-side
       const verifyRes = await fetch('/api/paystack/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+          Authorization: `Bearer ${idToken}`
         },
-        body: JSON.stringify({ reference, userId })
+        body: JSON.stringify({ reference })
       });
 
       const verifyData = await verifyRes.json();

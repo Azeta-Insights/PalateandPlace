@@ -46,7 +46,23 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
   const [insights, setInsights] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState('');
+
+  // Normalize incoming request objects so id and fields are guaranteed
+  const normalizeRequest = (r: any): PremiumRequest => {
+    const emailClean = (r.email || '').trim().toLowerCase();
+    const safeId = r.id || r.requestId || (emailClean ? `req-${emailClean.replace(/[^a-zA-Z0-9]/g, '_')}` : `req-${r.userId || Date.now()}`);
+    return {
+      id: safeId,
+      userId: r.userId || emailClean,
+      name: r.name || 'Culinary Reviewer',
+      email: emailClean,
+      requestedAt: r.requestedAt || new Date().toISOString(),
+      status: ((r.status || 'pending') as string).toLowerCase() as any,
+      reviewedAt: r.reviewedAt
+    };
+  };
 
   // Quick reviewer grant form state
   const [reviewerEmail, setReviewerEmail] = useState('');
@@ -56,8 +72,8 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
   const fetchAdminData = async () => {
     setLoading(true);
     setIsRefreshing(true);
-    let apiRequests: PremiumRequest[] = [];
-    let firestoreRequests: PremiumRequest[] = [];
+    let apiRequests: any[] = [];
+    let firestoreRequests: any[] = [];
 
     // 1. Direct Firestore fetch for reviewer requests
     try {
@@ -92,9 +108,17 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
 
     // Merge requests giving priority to latest
     const reqMap = new Map<string, PremiumRequest>();
-    apiRequests.forEach((r) => reqMap.set(r.id || r.userId, r));
-    firestoreRequests.forEach((r) => reqMap.set(r.id || r.userId, r));
-    setRequests(Array.from(reqMap.values()));
+    apiRequests.forEach((r) => {
+      const norm = normalizeRequest(r);
+      reqMap.set(norm.id, norm);
+      if (norm.email) reqMap.set(norm.email, norm);
+    });
+    firestoreRequests.forEach((r) => {
+      const norm = normalizeRequest(r);
+      reqMap.set(norm.id, norm);
+      if (norm.email) reqMap.set(norm.email, norm);
+    });
+    setRequests(Array.from(new Set(reqMap.values())));
 
     try {
       const res = await fetch('/api/recipe-insights');
@@ -119,12 +143,19 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
 
       // Real-time listener for incoming & updated requests
       const unsub = onSnapshot(collection(db, 'premiumRequests'), (snap) => {
-        const liveReqs = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PremiumRequest[];
+        const liveReqs = snap.docs.map((d) => normalizeRequest({ id: d.id, ...(d.data() as any) }));
         setRequests((prev) => {
           const map = new Map<string, PremiumRequest>();
-          prev.forEach((r) => map.set(r.id || r.userId, r));
-          liveReqs.forEach((r) => map.set(r.id || r.userId, r));
-          return Array.from(map.values());
+          prev.forEach((r) => {
+            const norm = normalizeRequest(r);
+            map.set(norm.id, norm);
+            if (norm.email) map.set(norm.email, norm);
+          });
+          liveReqs.forEach((r) => {
+            map.set(r.id, r);
+            if (r.email) map.set(r.email, r);
+          });
+          return Array.from(new Set(map.values()));
         });
       }, (err) => {
         console.warn('Real-time requests subscription notice:', err);
@@ -227,31 +258,63 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
   };
 
   const handleApproveRequest = async (req: PremiumRequest) => {
+    const norm = normalizeRequest(req);
+    const safeId = norm.id;
+    setProcessingId(safeId);
+    const safetyTimer = setTimeout(() => setProcessingId(null), 4000);
+    const emailClean = norm.email;
+    const reviewerPass: UserEntitlement = {
+      tier: 'test_premium',
+      source: 'reviewer_pass',
+      validUntil: 'never',
+      grantedAt: new Date().toISOString()
+    };
+
+    // Optimistic UI state update
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.id === safeId || (emailClean && r.email.toLowerCase() === emailClean)
+          ? { ...r, status: 'approved', reviewedAt: new Date().toISOString() }
+          : r
+      )
+    );
+    setActionMessage(`Approved World Pass access for ${norm.email || norm.name}`);
+
     try {
-      const emailClean = (req.email || '').trim().toLowerCase();
-      const reviewerPass: UserEntitlement = {
-        tier: 'test_premium',
-        source: 'reviewer_pass',
-        validUntil: 'never',
-        grantedAt: new Date().toISOString()
-      };
-
-      // 1. Direct Firestore update
+      // 1. Direct Firestore update (safe merge)
       try {
-        await updateDoc(doc(db, 'premiumRequests', req.id), {
-          status: 'approved',
-          reviewedAt: new Date().toISOString()
-        });
+        await setDoc(
+          doc(db, 'premiumRequests', safeId),
+          {
+            id: safeId,
+            status: 'approved',
+            reviewedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
 
-        if (req.userId) {
-          await setDoc(doc(db, 'entitlements', req.userId), reviewerPass, { merge: true });
-          await updateDoc(doc(db, 'users', req.userId), {
+        if (norm.userId) {
+          await setDoc(doc(db, 'entitlements', norm.userId), reviewerPass, { merge: true });
+          await updateDoc(doc(db, 'users', norm.userId), {
             entitlement: reviewerPass,
             updatedAt: new Date().toISOString()
           }).catch(() => {});
         }
 
         if (emailClean) {
+          const emailCleanId = `req-${emailClean.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          await setDoc(
+            doc(db, 'premiumRequests', emailCleanId),
+            {
+              id: emailCleanId,
+              status: 'approved',
+              email: emailClean,
+              name: norm.name || 'Culinary Reviewer',
+              reviewedAt: new Date().toISOString()
+            },
+            { merge: true }
+          );
+
           await setDoc(doc(db, 'entitlements', emailClean), reviewerPass, { merge: true });
           const userQuery = query(collection(db, 'users'), where('email', '==', emailClean));
           const userSnap = await getDocs(userQuery);
@@ -277,8 +340,10 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           },
           body: JSON.stringify({
-            requestId: req.id,
-            userId: req.userId
+            requestId: safeId,
+            id: safeId,
+            userId: norm.userId || emailClean,
+            email: emailClean
           })
         });
         if (res.ok) {
@@ -290,46 +355,81 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
       } catch (apiErr) {
         console.warn('API approve notice:', apiErr);
       }
-
-      setActionMessage(`Approved World Pass access for ${req.email || req.name}`);
-      fetchAdminData();
     } catch (err: any) {
+      console.error('Approval error:', err);
       setActionMessage(`Error: ${err.message}`);
+    } finally {
+      clearTimeout(safetyTimer);
+      setProcessingId(null);
     }
   };
 
   const handleRejectRequest = async (req: PremiumRequest) => {
+    const norm = normalizeRequest(req);
+    const safeId = norm.id;
+    setProcessingId(safeId);
+    const safetyTimer = setTimeout(() => setProcessingId(null), 4000);
+    setRequests((prev) =>
+      prev.map((r) => (r.id === safeId ? { ...r, status: 'rejected', reviewedAt: new Date().toISOString() } : r))
+    );
+    setActionMessage(`Declined request for ${norm.email || norm.name}`);
+
     try {
-      await updateDoc(doc(db, 'premiumRequests', req.id), {
-        status: 'rejected',
-        reviewedAt: new Date().toISOString()
-      });
-      setActionMessage(`Declined request for ${req.email || req.name}`);
-      fetchAdminData();
+      await setDoc(
+        doc(db, 'premiumRequests', safeId),
+        {
+          id: safeId,
+          status: 'rejected',
+          reviewedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
     } catch (err: any) {
+      console.error('Decline error:', err);
       setActionMessage(`Error: ${err.message}`);
+    } finally {
+      clearTimeout(safetyTimer);
+      setProcessingId(null);
     }
   };
 
   const handleRevokeAccess = async (req: PremiumRequest) => {
-    try {
-      const emailClean = (req.email || '').trim().toLowerCase();
-      const freeEnt: UserEntitlement = {
-        tier: 'free',
-        source: 'default',
-        revokedAt: new Date().toISOString()
-      };
+    const norm = normalizeRequest(req);
+    const safeId = norm.id;
+    setProcessingId(safeId);
+    const safetyTimer = setTimeout(() => setProcessingId(null), 4000);
+    const emailClean = norm.email;
+    const freeEnt: UserEntitlement = {
+      tier: 'free',
+      source: 'default',
+      revokedAt: new Date().toISOString()
+    };
 
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.id === safeId || (emailClean && r.email.toLowerCase() === emailClean)
+          ? { ...r, status: 'revoked', reviewedAt: new Date().toISOString() }
+          : r
+      )
+    );
+    setActionMessage(`Revoked access for ${norm.email || norm.name}`);
+
+    try {
       // 1. Direct Firestore update
       try {
-        await updateDoc(doc(db, 'premiumRequests', req.id), {
-          status: 'revoked',
-          reviewedAt: new Date().toISOString()
-        });
+        await setDoc(
+          doc(db, 'premiumRequests', safeId),
+          {
+            id: safeId,
+            status: 'revoked',
+            reviewedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
 
-        if (req.userId) {
-          await setDoc(doc(db, 'entitlements', req.userId), freeEnt, { merge: true });
-          await updateDoc(doc(db, 'users', req.userId), {
+        if (norm.userId) {
+          await setDoc(doc(db, 'entitlements', norm.userId), freeEnt, { merge: true });
+          await updateDoc(doc(db, 'users', norm.userId), {
             entitlement: freeEnt,
             updatedAt: new Date().toISOString()
           }).catch(() => {});
@@ -361,8 +461,9 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           },
           body: JSON.stringify({
-            requestId: req.id,
-            userId: req.userId
+            requestId: safeId,
+            id: safeId,
+            userId: norm.userId || emailClean
           })
         });
         if (res.ok) {
@@ -374,11 +475,12 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
       } catch (apiErr) {
         console.warn('API revoke notice:', apiErr);
       }
-
-      setActionMessage(`Revoked World Pass access for ${req.email || req.name}`);
-      fetchAdminData();
     } catch (err: any) {
+      console.error('Revoke error:', err);
       setActionMessage(`Error: ${err.message}`);
+    } finally {
+      clearTimeout(safetyTimer);
+      setProcessingId(null);
     }
   };
 
@@ -404,7 +506,7 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
                 Kitchen Curator Portal
               </h2>
               <p className="text-xs text-[#71675D]">
-                Curator & Administrator Console (blessing.waydiva@gmail.com)
+                Curator & Administrator Console
               </p>
             </div>
           </div>
@@ -575,28 +677,82 @@ export const AdminConsoleModal: React.FC<AdminConsoleModalProps> = ({
                           {isPending && (
                             <>
                               <button
-                                onClick={() => handleApproveRequest(req)}
-                                className="px-3 py-1.5 rounded-xl bg-[#68745D] hover:bg-[#57624E] text-white text-xs font-semibold flex items-center gap-1 shadow-xs"
+                                type="button"
+                                disabled={processingId === req.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApproveRequest(req);
+                                }}
+                                className="px-3.5 py-1.5 rounded-xl bg-[#68745D] hover:bg-[#57624E] active:scale-95 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                               >
-                                <Check className="w-3.5 h-3.5" />
-                                Approve
+                                {processingId === req.id ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Approving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                    <span>Approve Access</span>
+                                  </>
+                                )}
                               </button>
                               <button
-                                onClick={() => handleRejectRequest(req)}
-                                className="px-3 py-1.5 rounded-xl bg-[#FAF5EC] hover:bg-[#F2EADB] text-[#71675D] text-xs font-semibold flex items-center gap-1 border border-[#E6DEC8]"
+                                type="button"
+                                disabled={processingId === req.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRejectRequest(req);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-[#FAF5EC] hover:bg-[#F2EADB] active:scale-95 disabled:opacity-50 text-[#71675D] text-xs font-semibold flex items-center gap-1 border border-[#E6DEC8] transition-all cursor-pointer"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
-                                Decline
+                                <span>Decline</span>
                               </button>
                             </>
                           )}
 
                           {isApproved && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={processingId === req.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApproveRequest(req);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-[#F2F5EC] hover:bg-[#E2EBD5] active:scale-95 disabled:opacity-50 text-[#5C6B38] border border-[#D5DEBF] text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                                title="Re-sync entitlements and push fresh grant to database"
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                <span>{processingId === req.id ? 'Re-syncing...' : 'Re-sync Access'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={processingId === req.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRevokeAccess(req);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-[#FDF2ED] hover:bg-[#F9E2D8] active:scale-95 disabled:opacity-50 text-[#B85C3A] border border-[#F4CEBE] text-xs font-semibold transition-all cursor-pointer"
+                              >
+                                {processingId === req.id ? 'Revoking...' : 'Revoke Access'}
+                              </button>
+                            </div>
+                          )}
+
+                          {(isRejected || st === 'revoked') && (
                             <button
-                              onClick={() => handleRevokeAccess(req)}
-                              className="px-3 py-1.5 rounded-xl bg-[#FDF2ED] hover:bg-[#F9E2D8] text-[#B85C3A] border border-[#F4CEBE] text-xs font-semibold"
+                              type="button"
+                              disabled={processingId === req.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApproveRequest(req);
+                              }}
+                              className="px-3.5 py-1.5 rounded-xl bg-[#68745D] hover:bg-[#57624E] active:scale-95 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                             >
-                              Revoke Access
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Grant Access</span>
                             </button>
                           )}
                         </div>

@@ -55,6 +55,8 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
     passport,
     cookingHistory,
     downloadedRecipeIds,
+    viewedIds,
+    searchHistory,
     toggleFavorite,
     downloadRecipe
   } = useKitchen();
@@ -100,15 +102,15 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
         cookingHistory,
         favorites,
         downloadedIds: downloadedRecipeIds,
-        viewedIds: [],
-        searchHistory: [],
+        viewedIds,
+        searchHistory,
         preferences: profile?.preferences,
         passportCountries: passport
       },
       ALL_RECIPES,
       8
     );
-  }, [cookingHistory, favorites, downloadedRecipeIds, profile?.preferences, passport]);
+  }, [cookingHistory, favorites, downloadedRecipeIds, viewedIds, searchHistory, profile?.preferences, passport]);
 
   // Your Next Destination: Unexplored countries from passport
   const nextDestinationRecipes = useMemo(() => {
@@ -341,9 +343,11 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
                 recipe={item.recipe}
                 isFavorite={favorites.has(item.recipe.recipeId)}
                 isDownloaded={downloadedRecipeIds.has(item.recipe.recipeId)}
+                isPremiumUser={isPremium}
                 onSelect={() => onSelectRecipe(item.recipe)}
                 onToggleFavorite={() => toggleFavorite(item.recipe.recipeId)}
                 onDownload={() => downloadRecipe(item.recipe)}
+                onOpenUnlockModal={onOpenUnlockModal}
               />
             </div>
           ))}
@@ -427,9 +431,11 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
               recipe={recipe}
               isFavorite={favorites.has(recipe.recipeId)}
               isDownloaded={downloadedRecipeIds.has(recipe.recipeId)}
+              isPremiumUser={isPremium}
               onSelect={() => onSelectRecipe(recipe)}
               onToggleFavorite={() => toggleFavorite(recipe.recipeId)}
               onDownload={() => downloadRecipe(recipe)}
+              onOpenUnlockModal={onOpenUnlockModal}
             />
           ))}
         </div>
@@ -499,9 +505,11 @@ export const EditorialHomeScreen: React.FC<EditorialHomeScreenProps> = ({
               recipe={recipe}
               isFavorite={favorites.has(recipe.recipeId)}
               isDownloaded={downloadedRecipeIds.has(recipe.recipeId)}
+              isPremiumUser={isPremium}
               onSelect={() => onSelectRecipe(recipe)}
               onToggleFavorite={() => toggleFavorite(recipe.recipeId)}
               onDownload={() => downloadRecipe(recipe)}
+              onOpenUnlockModal={onOpenUnlockModal}
             />
           ))}
         </div>

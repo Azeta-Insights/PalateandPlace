@@ -34,7 +34,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Requested-With, x-admin-token, x-user-id, x-paystack-signature'
+    'Content-Type, Authorization, X-Requested-With, x-paystack-signature'
   );
   if (req.method === 'OPTIONS') {
     return res.status(200).end();

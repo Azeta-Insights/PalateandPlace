@@ -64,7 +64,7 @@ export const FoodPassportView: React.FC<FoodPassportViewProps> = ({
           <div className="space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#C85A32] uppercase tracking-widest">
               <Compass className="w-3.5 h-3.5" />
-              <span>Official Global Gastronomy Record</span>
+              <span>Food Passport</span>
             </div>
             
             <h1 className="font-serif text-3xl sm:text-5xl font-bold text-[#231B15] tracking-tight">
