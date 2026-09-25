@@ -3,7 +3,6 @@ import {
   X, 
   Crown, 
   Check, 
-  Globe, 
   CreditCard, 
   ArrowRight,
   ArrowLeft
@@ -22,12 +21,11 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { user, isPremium, devFastUnlockPremium, applyEntitlement, signInWithGoogle } = useAuth();
+  const { user, isPremium, applyEntitlement, signInWithGoogle } = useAuth();
   const [loadingPaystack, setLoadingPaystack] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [testRequestSuccess, setTestRequestSuccess] = useState('');
 
-  // 1. Keyboard Escape to close modal smoothly
+  // 1. Keyboard Escape to close modal
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -69,7 +67,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
         origin: { y: 0.6 }
       });
     } catch {
-      // ignore in headless
+      // ignore
     }
   };
 
@@ -85,7 +83,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
         activeUser = auth.currentUser;
       } catch {
         setLoadingPaystack(false);
-        setErrorMessage('Please sign in with Google or Email so your World Pass is linked to your account.');
+        setErrorMessage('Please sign in with Google or Email so your ₦2,500 World Pass purchase is securely linked to your account.');
         return;
       }
     }
@@ -99,7 +97,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
     const idToken = await activeUser.getIdToken().catch(() => '');
 
     await PaystackService.initiateWorldUnlock(
-      activeUser.email || 'guest@palateandplace.app',
+      activeUser.email || 'customer@palateandplace.app',
       activeUser.uid,
       idToken,
       (result) => {
@@ -117,18 +115,6 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
         setErrorMessage(typeof err === 'string' ? err : 'Payment initiation failed');
       }
     );
-  };
-
-  const handleDevQuickUnlock = async () => {
-    const success = await devFastUnlockPremium();
-    if (success) {
-      triggerCelebration();
-      setTimeout(() => {
-        onClose();
-      }, 800);
-    } else {
-      setErrorMessage('Direct curator activation failed.');
-    }
   };
 
   const PERKS = [
@@ -220,22 +206,16 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
             </div>
           )}
 
-          {testRequestSuccess && (
-            <div className="p-3.5 rounded-xl bg-[#F2F5EC] border border-[#D5DEBF] text-xs text-[#5C6B38]">
-              {testRequestSuccess}
-            </div>
-          )}
-
           {/* Action: Checkout */}
           {!isPremium ? (
             <div className="space-y-3 pt-2">
               <button
                 onClick={handlePaystackPayment}
                 disabled={loadingPaystack}
-                className="w-full py-4 rounded-2xl bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] font-semibold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition-all transform active:scale-98"
+                className="w-full py-4 rounded-2xl bg-[#231B15] hover:bg-[#3D322A] text-[#FBF9F5] font-semibold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition-all transform active:scale-98 cursor-pointer"
               >
                 <CreditCard className="w-5 h-5 text-[#E8DAB7]" />
-                <span>{loadingPaystack ? 'Connecting to secure checkout...' : 'Unlock World Pass — ₦2,500'}</span>
+                <span>{loadingPaystack ? 'Connecting to Paystack checkout...' : 'Unlock World Pass — ₦2,500'}</span>
                 <ArrowRight className="w-4 h-4 text-[#E8DAB7]" />
               </button>
 
@@ -243,7 +223,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-3 rounded-2xl bg-white hover:bg-[#F4F0E8] text-[#5E5248] hover:text-[#231B15] border border-[#E8E1D7] text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
+                className="w-full py-3 rounded-2xl bg-white hover:bg-[#F4F0E8] text-[#5E5248] hover:text-[#231B15] border border-[#E8E1D7] text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Return to Global Cookbook (Keep Browsing)</span>
@@ -263,7 +243,7 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 rounded-xl bg-[#231B15] text-[#FBF9F5] font-semibold text-xs shadow-sm"
+                className="w-full py-2.5 rounded-xl bg-[#231B15] text-[#FBF9F5] font-semibold text-xs shadow-sm cursor-pointer"
               >
                 Back to Cookbook
               </button>
