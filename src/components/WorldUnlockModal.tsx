@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
+import { auth } from '../firebase/config';
 import { PaystackService } from '../services/paystackService';
 
 interface WorldUnlockModalProps {
@@ -76,22 +77,30 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
     setLoadingPaystack(true);
     setErrorMessage('');
 
-    if (!user) {
-      setLoadingPaystack(false);
-      setErrorMessage('Please sign in with Google or Email so your ₦2,500 World Pass purchase is securely linked to your account.');
+    let activeUser = user;
+
+    if (!activeUser) {
       try {
         await signInWithGoogle();
+        activeUser = auth.currentUser;
       } catch {
-        // User closed Google sign-in popup
+        setLoadingPaystack(false);
+        setErrorMessage('Please sign in with Google or Email so your World Pass is linked to your account.');
+        return;
       }
+    }
+
+    if (!activeUser) {
+      setLoadingPaystack(false);
+      setErrorMessage('Sign-in required to associate your World Pass with your profile.');
       return;
     }
 
-    const idToken = await user.getIdToken();
+    const idToken = await activeUser.getIdToken().catch(() => '');
 
     await PaystackService.initiateWorldUnlock(
-      user?.email || 'guest@palateandplace.app',
-      user?.uid || '',
+      activeUser.email || 'guest@palateandplace.app',
+      activeUser.uid,
       idToken,
       (result) => {
         setLoadingPaystack(false);
