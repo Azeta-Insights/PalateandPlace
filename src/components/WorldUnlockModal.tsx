@@ -146,9 +146,11 @@ export const WorldUnlockModal: React.FC<WorldUnlockModalProps> = ({
 
         {/* Modal Header */}
         <div className="p-6 sm:p-8 bg-[#F7F4EE] border-b border-[#E8E1D7] text-center space-y-3">
-          <div className="w-14 h-14 rounded-3xl bg-[#231B15] text-[#E8DAB7] flex items-center justify-center mx-auto shadow-md">
-            <Crown className="w-7 h-7 stroke-[2.2]" />
-          </div>
+          <img 
+            src="/favicon.svg" 
+            alt="Palate & Place Logo" 
+            className="w-14 h-14 rounded-2xl object-contain mx-auto shadow-md"
+          />
 
           <span className="inline-block text-xs font-semibold text-[#C85A32] uppercase tracking-widest">
             Palate & Place Passport

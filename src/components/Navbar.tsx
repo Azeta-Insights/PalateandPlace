@@ -60,9 +60,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => onSelectView('home')}
             className="flex items-center gap-3 cursor-pointer group select-none"
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#231B15] text-[#FBF9F5] flex items-center justify-center transition-transform group-hover:scale-105 shrink-0 shadow-sm">
-              <Compass className="w-5 h-5 text-[#E8DAB7] stroke-[1.8]" />
-            </div>
+            <img 
+              src="/favicon.svg" 
+              alt="Palate & Place Logo" 
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain transition-transform group-hover:scale-105 shrink-0 shadow-sm"
+            />
             <div>
               <span className="font-serif text-lg sm:text-2xl font-bold tracking-tight text-[#231B15] group-hover:text-[#C85A32] transition-colors">
                 Palate & Place

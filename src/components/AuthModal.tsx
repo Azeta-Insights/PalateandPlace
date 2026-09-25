@@ -112,9 +112,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-[#F7F4EE] border border-[#E8E1D7] text-[#C85A32] flex items-center justify-center mx-auto shadow-sm">
-            <Compass className="w-6 h-6" />
-          </div>
+          <img 
+            src="/favicon.svg" 
+            alt="Palate & Place Logo" 
+            className="w-12 h-12 rounded-2xl object-contain mx-auto shadow-sm"
+          />
           <h2 className="font-serif text-2xl font-bold text-[#231B15]">
             {mode === 'signin' ? 'Welcome to Palate & Place' : mode === 'signup' ? 'Create Your Culinary Journal' : 'Reset Your Password'}
           </h2>
