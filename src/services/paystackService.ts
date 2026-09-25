@@ -28,6 +28,10 @@ export interface PaymentSuccessResult {
 }
 
 export class PaystackService {
+  /**
+   * Initiates the official Paystack inline checkout popup.
+   * REQUIRES payment through Paystack. Will NEVER bypass or auto-grant without Paystack confirmation.
+   */
   static async initiateWorldUnlock(
     userEmail: string,
     userId: string,
@@ -36,12 +40,10 @@ export class PaystackService {
     onError: (err: string) => void
   ): Promise<void> {
     try {
-      // Retrieve current Firebase user and ID token dynamically
       const currentUser = auth.currentUser;
       const fetchedToken = await currentUser?.getIdToken().catch(() => '');
       const tokenToUse = fetchedToken || idTokenParam || '';
 
-      // Prepare request headers with Bearer token if present
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
@@ -51,7 +53,7 @@ export class PaystackService {
 
       let initData: any = null;
 
-      // 1. Try backend initialization API
+      // 1. Fetch initialization data from backend
       try {
         const res = await fetch('/api/paystack/initialize', {
           method: 'POST',
@@ -63,10 +65,10 @@ export class PaystackService {
           initData = await res.json().catch(() => null);
         }
       } catch {
-        // Silent fallback to client initialization
+        // Fallback to client environment variables if backend endpoint is unavailable
       }
 
-      // 2. Resilient fallback if backend returns error or is unreachable
+      // 2. Client fallback configuration lookup
       if (!initData || !initData.publicKey) {
         const reference = `PNP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
         const rawEnvKey = (
@@ -78,10 +80,10 @@ export class PaystackService {
 
         initData = {
           success: true,
-          amount: 250000,
+          amount: 250000, // ₦2,500.00 (in kobo)
           currency: 'NGN',
           reference,
-          email: userEmail || currentUser?.email || 'customer@palateandplace.app',
+          email: userEmail || currentUser?.email || '',
           publicKey: rawEnvKey,
           metadata: {
             userId: userId || currentUser?.uid || '',
@@ -95,33 +97,22 @@ export class PaystackService {
       const rawKey = (initData.publicKey || '').trim().replace(/^["']|["']$/g, '');
       const isRealPaystackKey = /^(pk_live_|pk_test_)[a-zA-Z0-9]{20,}$/.test(rawKey);
 
-      // 3. If Paystack key is missing or unconfigured in environment, perform Instant Test/Reviewer Unlock seamlessly
+      // STRICT CHECK: Paystack Key MUST be configured. NO BYPASS ALLOWED.
       if (!isRealPaystackKey) {
-        console.info('Paystack key not detected in environment. Activating instant reviewer pass...');
-        const testReference = initData.reference || `PNP-REV-${Date.now()}`;
-        const entitlement: UserEntitlement = {
-          tier: 'test_premium',
-          source: 'reviewer_pass',
-          unlockedAt: new Date().toISOString(),
-          paystackReference: testReference
-        };
-
-        onSuccess({
-          success: true,
-          reference: testReference,
-          entitlement
-        });
+        onError(
+          'Paystack Public Key is missing or invalid. Please add `PAYSTACK_PUBLIC_KEY` or `VITE_PAYSTACK_PUBLIC_KEY` (starting with pk_live_ or pk_test_) to your environment variables in Vercel to process customer payments.'
+        );
         return;
       }
 
-      // Ensure Paystack SDK script is loaded in window
+      // 3. Ensure Paystack inline JS SDK is loaded
       if (!window.PaystackPop) {
         try {
           await new Promise<void>((resolve, reject) => {
             const script = document.createElement('script');
             script.src = 'https://js.paystack.co/v1/inline.js';
             script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load Paystack SDK script'));
+            script.onerror = () => reject(new Error('Failed to load Paystack payment gateway SDK script'));
             document.head.appendChild(script);
           });
         } catch {
@@ -130,6 +121,7 @@ export class PaystackService {
         }
       }
 
+      // 4. Open Paystack Inline Payment Checkout Popup
       if (window.PaystackPop && window.PaystackPop.setup) {
         try {
           const handler = window.PaystackPop.setup({
@@ -140,6 +132,7 @@ export class PaystackService {
             ref: initData.reference,
             metadata: initData.metadata,
             callback: function (response: { reference: string }) {
+              // Strictly verify payment via Paystack API before granting entitlement
               PaystackService.verifyAndGrantEntitlement(
                 response.reference,
                 userId || currentUser?.uid || '',
@@ -149,23 +142,26 @@ export class PaystackService {
               );
             },
             onClose: function () {
-              onError('Payment window closed before completion');
+              onError('Payment cancelled. Payment must be completed on Paystack to unlock access.');
             }
           });
 
           handler.openIframe();
         } catch (setupErr: any) {
-          onError('Error opening Paystack checkout window: ' + (setupErr.message || 'Please retry.'));
+          onError('Error opening Paystack checkout: ' + (setupErr.message || 'Please retry.'));
         }
       } else {
-        onError('Paystack SDK could not be initialized. Please retry.');
+        onError('Paystack SDK could not be initialized. Please refresh and try again.');
       }
     } catch (err: any) {
       console.error('Paystack initiation error:', err);
-      onError(err.message || 'Payment initiation failed');
+      onError(err.message || 'Payment initiation failed.');
     }
   }
 
+  /**
+   * Verifies the payment with Paystack server-side before granting entitlement.
+   */
   public static async verifyAndGrantEntitlement(
     reference: string,
     _userId: string,
@@ -185,27 +181,24 @@ export class PaystackService {
         headers['Authorization'] = `Bearer ${tokenToUse}`;
       }
 
-      let verifiedOnServer = false;
-      let verifyData: any = null;
+      // Verify payment with Paystack API endpoint
+      const verifyRes = await fetch('/api/paystack/verify', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ reference })
+      });
 
-      try {
-        const verifyRes = await fetch('/api/paystack/verify', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ reference })
-        });
+      const verifyData = await verifyRes.json().catch(() => ({}));
 
-        if (verifyRes.ok) {
-          verifyData = await verifyRes.json();
-          if (verifyData?.verified) {
-            verifiedOnServer = true;
-          }
-        }
-      } catch (err) {
-        console.warn('Backend verification call failed, falling back to client entitlement grant:', err);
+      if (!verifyRes.ok || !verifyData?.verified) {
+        throw new Error(
+          verifyData?.message ||
+          verifyData?.error ||
+          'Payment verification failed on Paystack servers. Access can only be granted for verified transactions.'
+        );
       }
 
-      const entitlement: UserEntitlement = (verifiedOnServer && verifyData?.entitlement) ? verifyData.entitlement : {
+      const entitlement: UserEntitlement = verifyData.entitlement || {
         tier: 'premium',
         source: 'purchase',
         unlockedAt: new Date().toISOString(),
@@ -218,7 +211,7 @@ export class PaystackService {
         entitlement
       });
     } catch (err: any) {
-      onError('Payment verification notice: ' + (err.message || 'Unlock completed.'));
+      onError(err.message || 'Payment verification failed. Please contact support with reference: ' + reference);
     }
   }
 }
