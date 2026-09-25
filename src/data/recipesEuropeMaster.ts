@@ -1,4 +1,4 @@
-import { RegionalDishData } from './recipesAfrica';
+import { RegionalDishData } from './recipesAfrica.js';
 
 export const EUROPE_DISHES: Record<string, RegionalDishData[]> = {
   // SPAIN

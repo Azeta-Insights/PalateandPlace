@@ -1,6 +1,6 @@
-import { RegionalDishData } from './recipesAfrica';
-import { AFRICA_DISHES } from './recipesAfrica';
-import { AUTHENTIC_GLOBAL_CATALOG } from './authenticRegionalCatalog';
+import { RegionalDishData } from './recipesAfrica.js';
+import { AFRICA_DISHES } from './recipesAfrica.js';
+import { AUTHENTIC_GLOBAL_CATALOG } from './authenticRegionalCatalog.js';
 
 // Additional authentic dishes covering Asia, Europe, Americas, and Oceania
 export const AUTHENTIC_WORLD_DISHES: Record<string, RegionalDishData[]> = {

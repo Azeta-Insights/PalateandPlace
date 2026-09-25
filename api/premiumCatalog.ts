@@ -1,5 +1,5 @@
-import { Recipe } from '../src/types/recipe';
-import { generatePremiumRecipes } from '../src/data/premiumRecipeGenerator';
+import { Recipe } from '../src/types/recipe.js';
+import { generatePremiumRecipes } from '../src/data/premiumRecipeGenerator.js';
 
 // In-memory server cache of full premium recipes
 let CACHED_FULL_PREMIUM_RECIPES: Recipe[] | null = null;
