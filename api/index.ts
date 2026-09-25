@@ -55,9 +55,9 @@ router.get('/recipes', handleGetRecipe);
 router.post('/recipes/download-batch', handleDownloadBatch);
 
 // Paystack payment endpoints
-router.post('/paystack/initialize', handlePaystackInit);
-router.get('/paystack/verify', handlePaystackVerify);
-router.post('/paystack/webhook', handlePaystackWebhook);
+router.all('/paystack/initialize', handlePaystackInit);
+router.all('/paystack/verify', handlePaystackVerify);
+router.all('/paystack/webhook', handlePaystackWebhook);
 
 // User entitlement & insights endpoints
 router.get('/entitlements', handleGetEntitlement);

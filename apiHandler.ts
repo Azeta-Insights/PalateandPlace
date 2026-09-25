@@ -102,9 +102,13 @@ export async function verifyUserToken(
       // Fallback: Validate token JWT payload claims directly
       const parts = token.split('.');
       if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+        let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) {
+          base64 += '=';
+        }
+        const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
         const nowSec = Math.floor(Date.now() / 1000);
-        if (payload && payload.sub && payload.exp > nowSec) {
+        if (payload && (payload.sub || payload.user_id) && payload.exp > nowSec) {
           return {
             uid: payload.sub || payload.user_id,
             email: payload.email,
@@ -906,7 +910,12 @@ export async function handlePaystackInit(req: Request, res: Response) {
   const userId = verifiedUser.uid;
   const reference = `PNP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
-  let rawKey = (process.env.PAYSTACK_PUBLIC_KEY || '').trim().replace(/^["']|["']$/g, '');
+  let rawKey = (
+    process.env.PAYSTACK_PUBLIC_KEY ||
+    process.env.VITE_PAYSTACK_PUBLIC_KEY ||
+    process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+    ''
+  ).trim().replace(/^["']|["']$/g, '');
   let keyError: string | null = null;
   if (rawKey.startsWith('sk_')) {
     keyError = "Secret Key configured in PAYSTACK_PUBLIC_KEY. Please provide Public Key ('pk_...').";
@@ -948,7 +957,11 @@ export async function handlePaystackVerify(req: Request, res: Response) {
     return res.status(400).json({ error: 'Missing payment reference' });
   }
 
-  const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim().replace(/^["']|["']$/g, '');
+  const secretKey = (
+    process.env.PAYSTACK_SECRET_KEY ||
+    process.env.VITE_PAYSTACK_SECRET_KEY ||
+    ''
+  ).trim().replace(/^["']|["']$/g, '');
 
   if (!secretKey || secretKey.length < 15 || secretKey.includes('YOUR_PAYSTACK_SECRET_KEY')) {
     return res.status(500).json({
@@ -1050,7 +1063,11 @@ export async function handlePaystackVerify(req: Request, res: Response) {
 
 export async function handlePaystackWebhook(req: Request, res: Response) {
   const signature = req.headers['x-paystack-signature'] as string | undefined;
-  const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim().replace(/^["']|["']$/g, '');
+  const secretKey = (
+    process.env.PAYSTACK_SECRET_KEY ||
+    process.env.VITE_PAYSTACK_SECRET_KEY ||
+    ''
+  ).trim().replace(/^["']|["']$/g, '');
   const rawBody = (req as any).rawBody;
 
   if (!signature || !secretKey || !rawBody) {
