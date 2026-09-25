@@ -1,4 +1,4 @@
-// api/index.ts
+// api/serverApp.ts
 import express from "express";
 
 // api/apiHandler.ts
@@ -6489,7 +6489,7 @@ async function handleDevGrantPremium(req, res) {
   });
 }
 
-// api/index.ts
+// api/serverApp.ts
 var app = express();
 app.use(
   express.json({
@@ -6548,7 +6548,7 @@ app.use((req, res) => {
     originalUrl: req.originalUrl
   });
 });
-var index_default = app;
+var serverApp_default = app;
 export {
-  index_default as default
+  serverApp_default as default
 };

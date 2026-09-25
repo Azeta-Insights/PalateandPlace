@@ -1,4 +1,4 @@
-import { Recipe, Continent, MealType, Difficulty } from '../types/recipe.js';
+import { Recipe, Continent, MealType, Difficulty } from '../types/recipe';
 
 // Master country metadata for 50+ countries across 6 continents
 interface CountryMeta {

@@ -1,5 +1,5 @@
-import { RegionalDishData } from './recipesAfrica.js';
-import { AFRICA_DISHES } from './recipesAfrica.js';
+import { RegionalDishData } from './recipesAfrica';
+import { AFRICA_DISHES } from './recipesAfrica';
 
 export const AUTHENTIC_GLOBAL_CATALOG: Record<string, RegionalDishData[]> = {
   ...AFRICA_DISHES,

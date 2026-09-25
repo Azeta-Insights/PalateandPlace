@@ -1,13 +1,13 @@
 import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { Request, Response } from 'express';
-import { adminAuth, adminDb } from './firebaseAdmin.js';
+import { adminAuth, adminDb } from './firebaseAdmin';
 import {
   getFullPremiumRecipeById,
   getFullPremiumRecipesBatch,
   getAllFullPremiumRecipes
-} from './premiumCatalog.js';
-import { ALL_STARTER_RECIPES } from '../src/data/recipes.js';
+} from './premiumCatalog';
+import { ALL_STARTER_RECIPES } from '../src/data/recipes';
 
 // Primary Curator / Administrator identifier
 export const PRIMARY_ADMIN_EMAIL = 'blessing.waydiva@gmail.com';

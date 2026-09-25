@@ -1,4 +1,4 @@
-import { Recipe } from '../types/recipe.js';
+import { Recipe } from '../types/recipe';
 
 export const STARTER_RECIPES: Recipe[] = [
   // ==================== AFRICA (10 RECIPES) ====================

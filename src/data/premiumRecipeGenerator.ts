@@ -1,8 +1,8 @@
-import { Recipe, Ingredient, PreparationStep } from '../types/recipe.js';
-import { COUNTRIES_DATABASE, PREMIUM_BLUEPRINTS } from './premiumCatalogData.js';
-import { AUTHENTIC_WORLD_DISHES } from './authenticCatalogData.js';
-import { EUROPE_DISHES } from './recipesEuropeMaster.js';
-import { RegionalDishData } from './recipesAfrica.js';
+import { Recipe, Ingredient, PreparationStep } from '../types/recipe';
+import { COUNTRIES_DATABASE, PREMIUM_BLUEPRINTS } from './premiumCatalogData';
+import { AUTHENTIC_WORLD_DISHES } from './authenticCatalogData';
+import { EUROPE_DISHES } from './recipesEuropeMaster';
+import { RegionalDishData } from './recipesAfrica';
 
 // High-quality food images mapped by dish type
 const CURATED_IMAGES: Record<string, string> = {

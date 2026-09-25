@@ -1,8 +1,8 @@
-import { Recipe, Continent } from '../types/recipe.js';
-import { STARTER_RECIPES } from './starterRecipes.js';
-import { STARTER_RECIPES_PART2 } from './starterRecipesPart2.js';
-import { STARTER_RECIPES_PART3 } from './starterRecipesPart3.js';
-import { generatePremiumSummaries } from './premiumCatalogSummaries.js';
+import { Recipe, Continent } from '../types/recipe';
+import { STARTER_RECIPES } from './starterRecipes';
+import { STARTER_RECIPES_PART2 } from './starterRecipesPart2';
+import { STARTER_RECIPES_PART3 } from './starterRecipesPart3';
+import { generatePremiumSummaries } from './premiumCatalogSummaries';
 
 // Exactly 50 Starter Recipes representing all 6 continents (instantly available offline)
 export const ALL_STARTER_RECIPES: Recipe[] = [
